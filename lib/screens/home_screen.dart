@@ -14,6 +14,40 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _confirmRestartLevel(
+    BuildContext context,
+    GameProvider provider,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded),
+          title: const Text('Restart level?'),
+          content: const Text(
+            'All progress on this level will be lost, including arrows '
+            'cleared and lives remaining.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Restart'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    provider.restart();
+    _openGame(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,10 +128,8 @@ class HomeScreen extends StatelessWidget {
                                     label: 'Restart Level',
                                     subtitle:
                                         'Replay Level ${provider.levelIndex + 1} from the start',
-                                    onPressed: () {
-                                      provider.restart();
-                                      _openGame(context);
-                                    },
+                                    onPressed: () =>
+                                        _confirmRestartLevel(context, provider),
                                   ),
                                 ],
                               ],
