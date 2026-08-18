@@ -2,13 +2,12 @@ import 'package:flutter/foundation.dart';
 import '../game/game_engine.dart';
 import '../models/board.dart';
 import '../models/level.dart';
+import '../services/game_progress_store.dart';
 
 enum GameStatus { playing, won, lost }
 
 class GameProvider extends ChangeNotifier {
-  GameProvider({GameEngine? engine}) : _engine = engine ?? const GameEngine() {
-    loadLevel(0);
-  }
+  GameProvider({GameEngine? engine}) : _engine = engine ?? const GameEngine();
 
   final GameEngine _engine;
 
@@ -26,7 +25,9 @@ class GameProvider extends ChangeNotifier {
   String? _hintedArrowId;
   LevelDef? _preloadedLevel;
   int? _preloadedLevelIndex;
+  bool _isInitialized = false;
 
+  bool get isInitialized => _isInitialized;
   Board get board => _board;
   LevelDef get level => _level;
   int get levelIndex => _levelIndex;
@@ -54,7 +55,66 @@ class GameProvider extends ChangeNotifier {
     return false;
   }
 
-  void startNewGame() => loadLevel(0);
+  Future<void> restoreProgress() async {
+    final saved = await GameProgressStore.load();
+    if (saved != null) {
+      await _restoreFromSave(saved);
+    } else {
+      loadLevel(0);
+    }
+    _isInitialized = true;
+    notifyListeners();
+  }
+
+  Future<void> saveProgress() => _persistProgress();
+
+  Future<void> _restoreFromSave(SavedGameState saved) async {
+    final safeIndex = saved.levelIndex.clamp(0, LevelCatalog.levelCount - 1);
+    final level = LevelCatalog.isCached(safeIndex)
+        ? LevelCatalog.byIndex(safeIndex)
+        : await LevelCatalog.byIndexAsync(safeIndex);
+
+    final validIds = saved.remainingArrowIds
+        .where((id) => level.arrows.any((arrow) => arrow.id == id))
+        .toList();
+
+    if (validIds.isEmpty && saved.status == GameStatus.playing.name) {
+      loadLevel(safeIndex);
+      return;
+    }
+
+    _levelIndex = safeIndex;
+    _level = level;
+    _board = Board(
+      rows: level.rows,
+      cols: level.cols,
+      arrows: {
+        for (final arrow in level.arrows)
+          if (validIds.contains(arrow.id)) arrow.id: arrow,
+      },
+    );
+    _boardSession++;
+    _status = _board.isWon
+        ? GameStatus.won
+        : GameStatus.values.asNameMap()[saved.status] ?? GameStatus.playing;
+    _isAnimating = false;
+    _showShapeBackground = true;
+    _lives = saved.lives.clamp(0, 3);
+    _lastRejectedId = null;
+    _pendingMove = null;
+    _hintedArrowId = null;
+    _preloadedLevel = null;
+    _preloadedLevelIndex = null;
+
+    if (_status == GameStatus.won) {
+      _preloadNextLevel();
+    }
+  }
+
+  Future<void> startNewGame() async {
+    await GameProgressStore.clear();
+    loadLevel(0);
+  }
 
   void _applyLevel(int index, LevelDef level) {
     _levelIndex = index;
@@ -71,6 +131,7 @@ class GameProvider extends ChangeNotifier {
     _preloadedLevel = null;
     _preloadedLevelIndex = null;
     notifyListeners();
+    _persistProgress();
   }
 
   void loadLevel(int index, {LevelDef? preloaded}) {
@@ -161,6 +222,7 @@ class GameProvider extends ChangeNotifier {
         _status = GameStatus.lost;
       }
       notifyListeners();
+      _persistProgress();
       return null;
     }
 
@@ -196,5 +258,17 @@ class GameProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+    _persistProgress();
+  }
+
+  Future<void> _persistProgress() async {
+    if (!_isInitialized) return;
+
+    await GameProgressStore.save(
+      levelIndex: _levelIndex,
+      remainingArrowIds: _board.arrows.keys.toList(),
+      lives: _lives,
+      status: _status.name,
+    );
   }
 }

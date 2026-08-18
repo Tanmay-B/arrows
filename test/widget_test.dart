@@ -1,11 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:arrows/main.dart';
 import 'package:arrows/models/level.dart';
+import 'package:arrows/providers/game_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('Arrows app loads home then game screen', (tester) async {
-    await tester.pumpWidget(const ArrowsApp());
-    expect(find.text('ARROWS'), findsOneWidget);
+    final provider = GameProvider();
+    await provider.restoreProgress();
+
+    await tester.pumpWidget(ArrowsApp(gameProvider: provider));
+    expect(find.text('Arrow Maze'), findsOneWidget);
     expect(find.text('New Game'), findsOneWidget);
 
     await tester.tap(find.text('New Game'));

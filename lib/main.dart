@@ -9,18 +9,49 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await MobileAds.instance.initialize();
   await AdService.instance.preloadInterstitial();
-  runApp(const ArrowsApp());
+
+  final gameProvider = GameProvider();
+  await gameProvider.restoreProgress();
+
+  runApp(ArrowsApp(gameProvider: gameProvider));
 }
 
-class ArrowsApp extends StatelessWidget {
-  const ArrowsApp({super.key});
+class ArrowsApp extends StatefulWidget {
+  const ArrowsApp({super.key, required this.gameProvider});
+
+  final GameProvider gameProvider;
+
+  @override
+  State<ArrowsApp> createState() => _ArrowsAppState();
+}
+
+class _ArrowsAppState extends State<ArrowsApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      widget.gameProvider.saveProgress();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => GameProvider(),
+    return ChangeNotifierProvider.value(
+      value: widget.gameProvider,
       child: MaterialApp(
-        title: 'Arrows',
+        title: 'Arrow Maze',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(

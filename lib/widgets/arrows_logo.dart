@@ -35,10 +35,10 @@ class ArrowsLogo extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         Text(
-          'ARROWS',
+          'Arrow Maze',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            letterSpacing: 5,
+            letterSpacing: 2.5,
             height: 1,
             color: const Color(0xFF2E2118),
           ),
@@ -51,7 +51,7 @@ class ArrowsLogo extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            'ARROW PUZZLE',
+            'PUZZLE GAME',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               letterSpacing: 2.8,
               fontWeight: FontWeight.w700,

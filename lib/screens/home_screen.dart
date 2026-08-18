@@ -115,12 +115,12 @@ class HomeScreen extends StatelessWidget {
                                 _PrimaryHomeButton(
                                   label: primaryLabel,
                                   subtitle: levelSubtitle,
-                                  onPressed: () {
-                                    if (!inProgress) {
-                                      provider.startNewGame();
-                                    }
-                                    _openGame(context);
-                                  },
+                        onPressed: () async {
+                          if (!inProgress) {
+                            await provider.startNewGame();
+                          }
+                          _openGame(context);
+                        },
                                 ),
                                 if (inProgress) ...[
                                   const SizedBox(height: 12),
