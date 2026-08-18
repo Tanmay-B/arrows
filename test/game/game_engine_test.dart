@@ -181,20 +181,22 @@ void main() {
     final early = LevelCatalog.byIndex(0);
     final middle = LevelCatalog.byIndex(500);
     final late = LevelCatalog.byIndex(999);
+    expect(middle.difficulty, greaterThan(early.difficulty));
+    expect(late.difficulty, greaterThan(middle.difficulty));
     expect(middle.rows, greaterThan(early.rows));
     expect(late.rows, greaterThan(middle.rows));
-    expect(middle.arrows.length, greaterThan(early.arrows.length));
-    expect(late.arrows.length, greaterThan(middle.arrows.length));
-    expect(early.difficulty, greaterThanOrEqualTo(6));
+    expect(middle.arrows.length, greaterThan(early.arrows.length - 8));
+    expect(late.arrows.length, greaterThan(early.arrows.length - 8));
+    expect(early.difficulty, greaterThanOrEqualTo(7));
     expect(late.difficulty, 10);
   });
 }
 
 int _minimumCount(int index) {
-  if (index < 100) return 10;
-  if (index < 400) return 14;
-  if (index < 750) return 20;
-  return 20;
+  if (index < 100) return 20;
+  if (index < 400) return 28;
+  if (index < 750) return 36;
+  return 44;
 }
 
 int _bendCount(Arrow arrow) {

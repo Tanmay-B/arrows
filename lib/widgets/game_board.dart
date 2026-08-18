@@ -19,6 +19,8 @@ class GameBoard extends StatefulWidget {
 class _GameBoardState extends State<GameBoard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  final TransformationController _transformController =
+      TransformationController();
   String? _movingId;
   int _exitDistance = 0;
 
@@ -41,6 +43,7 @@ class _GameBoardState extends State<GameBoard>
   @override
   void dispose() {
     _controller.dispose();
+    _transformController.dispose();
     super.dispose();
   }
 
@@ -76,19 +79,36 @@ class _GameBoardState extends State<GameBoard>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = math.min(
-          constraints.maxHeight,
-          width * board.rows / board.cols,
+        const cellSize = 28.0;
+        final boardSize = Size(
+          board.cols * cellSize,
+          board.rows * cellSize,
         );
-        final boardSize = Size(width, height);
+        final fitScale = math.min(
+          constraints.maxWidth / boardSize.width,
+          constraints.maxHeight / boardSize.height,
+        );
 
-        return Center(
-          child: SizedBox.fromSize(
-            size: boardSize,
-            child: GestureDetector(
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: InteractiveViewer(
+            key: ValueKey(provider.levelIndex),
+            transformationController: _transformController,
+            constrained: false,
+            minScale: fitScale * 0.8,
+            maxScale: math.max(4.0, 1 / fitScale * 2),
+            panEnabled: true,
+            scaleEnabled: true,
+            boundaryMargin: const EdgeInsets.all(120),
+            clipBehavior: Clip.none,
+            child: SizedBox(
+              width: boardSize.width,
+              height: boardSize.height,
+              child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTapUp: provider.status == GameStatus.playing && _movingId == null
+              onTapUp:
+                  provider.status == GameStatus.playing && _movingId == null
                   ? (details) {
                       final id = _hitTest(
                         details.localPosition,
@@ -117,6 +137,7 @@ class _GameBoardState extends State<GameBoard>
               ),
             ),
           ),
+        ),
         );
       },
     );
@@ -288,7 +309,7 @@ class _ArrowBoardPainter extends CustomPainter {
     if (points.length < 2) return;
 
     final color = rejected ? const Color(0xFFB5483A) : const Color(0xFF66584B);
-    final lineWidth = math.max(2.3, metrics.cellSize * 0.105);
+    final lineWidth = math.max(3.0, metrics.cellSize * 0.14);
     final path = Path()..moveTo(points.first.dx, points.first.dy);
     for (final point in points.skip(1)) {
       path.lineTo(point.dx, point.dy);

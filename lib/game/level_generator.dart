@@ -17,24 +17,28 @@ class LevelGenerator {
     final config = _DifficultyConfig.forLevel(levelIndex);
     final shape = LevelShape.forLevel(levelIndex, config.size);
     _GeneratedLayout? best;
+    _GeneratedLayout? bestConstrained;
 
     final restartCount = levelIndex >= 750
         ? 6
-        : levelIndex < 20
-        ? 4
-        : 3;
+        : levelIndex < 100
+        ? 6
+        : 4;
     for (var restart = 0; restart < restartCount; restart++) {
       final random = Random(_seedFor(levelIndex, restart));
       final layout = _buildLayout(random, config, shape);
       if (layout == null) continue;
 
-      if (best == null ||
-          layout.arrows.length > best.arrows.length ||
-          (layout.arrows.length == best.arrows.length &&
-              (layout.initialMovableCount < best.initialMovableCount ||
-                  (layout.initialMovableCount == best.initialMovableCount &&
-                      layout.shapeCoverage > best.shapeCoverage)))) {
+      if (_layoutScore(layout) > _layoutScore(best)) {
         best = layout;
+      }
+
+      if (layout.initialMovableCount <= config.maxInitialMovable &&
+          layout.shapeCoverage >= config.minShapeCoverage - 0.04) {
+        if (_layoutScore(layout, preferFewMovable: true) >
+            _layoutScore(bestConstrained, preferFewMovable: true)) {
+          bestConstrained = layout;
+        }
       }
 
       if (layout.arrows.length >= config.minArrowCount &&
@@ -44,10 +48,37 @@ class LevelGenerator {
       }
     }
 
-    if (best == null) {
+    var fallback = bestConstrained != null &&
+            bestConstrained.arrows.length >= config.minArrowCount - 6
+        ? bestConstrained
+        : best;
+    if (fallback == null) {
       throw StateError('Unable to generate level ${levelIndex + 1}');
     }
-    return _toLevel(levelIndex, config, shape, best);
+    var selected = fallback;
+    if (selected.arrows.length < config.minArrowCount - 6) {
+      final relaxed = config.relaxed();
+      for (var restart = 0; restart < 4; restart++) {
+        final random = Random(_seedFor(levelIndex, restartCount + restart));
+        final layout = _buildLayout(random, relaxed, shape);
+        if (layout == null) continue;
+        if (_layoutScore(layout) > _layoutScore(selected)) {
+          selected = layout;
+        }
+        if (layout.arrows.length >= config.minArrowCount - 6) {
+          break;
+        }
+      }
+    }
+    return _toLevel(levelIndex, config, shape, selected);
+  }
+
+  int _layoutScore(_GeneratedLayout? layout, {bool preferFewMovable = false}) {
+    if (layout == null) return -1;
+    final movableWeight = preferFewMovable ? 80 : 40;
+    return layout.arrows.length * 100 -
+        layout.initialMovableCount * movableWeight +
+        (layout.shapeCoverage * 80).round();
   }
 
   LevelDef _toLevel(
@@ -80,6 +111,8 @@ class LevelGenerator {
     final occupied = <GridPoint>{};
     var movable = <Arrow>[];
 
+    var consecutiveFailures = 0;
+
     for (var index = 0; index < config.arrowCount; index++) {
       _ScoredCandidate? bestCandidate;
       final needsBlocker = movable.isNotEmpty && index >= 1;
@@ -96,7 +129,7 @@ class LevelGenerator {
           direction: _safeCells(direction, occupied, shape),
       };
 
-      for (var attempt = 0; attempt < 128; attempt++) {
+      for (var attempt = 0; attempt < 160; attempt++) {
         final candidate = _randomArrow(
           random,
           'a${index + 1}',
@@ -126,10 +159,11 @@ class LevelGenerator {
         final bends = _bendCount(candidate);
         final shapeFill = candidate.points.where(shape.contains).length;
         final score =
-            blockedCount * 120 +
-            bends * 8 +
-            candidate.points.length * 3 +
-            shapeFill * 2;
+            blockedCount * 180 +
+            bends * 10 +
+            candidate.points.length * 6 +
+            shapeFill * 8 +
+            emptyShapeCells.intersection(candidate.points.toSet()).length * 4;
         final scored = _ScoredCandidate(candidate, blockedCount, score);
 
         if (bestCandidate == null || scored.score > bestCandidate.score) {
@@ -142,8 +176,11 @@ class LevelGenerator {
       }
 
       if (bestCandidate == null) {
-        break;
+        consecutiveFailures++;
+        if (consecutiveFailures >= 3) break;
+        continue;
       }
+      consecutiveFailures = 0;
 
       arrows.add(bestCandidate.arrow);
       occupied.addAll(bestCandidate.arrow.points);
@@ -454,57 +491,75 @@ class _DifficultyConfig {
   final double minShapeCoverage;
   final int difficulty;
 
+  _DifficultyConfig relaxed() {
+    return _DifficultyConfig(
+      size: size,
+      arrowCount: arrowCount,
+      minArrowCount: minArrowCount,
+      minLength: minLength,
+      maxLength: maxLength,
+      minBends: max(1, minBends - 1),
+      maxInitialMovable: maxInitialMovable + 1,
+      minShapeCoverage: max(0.44, minShapeCoverage - 0.05),
+      difficulty: difficulty,
+    );
+  }
+
   factory _DifficultyConfig.forLevel(int index) {
     if (index < 100) {
+      final size = 26 + index ~/ 25;
       return _DifficultyConfig(
-        size: 14 + index ~/ 40,
-        arrowCount: 18 + index % 4,
-        minArrowCount: 12,
-        minLength: 4,
-        maxLength: 9,
-        minBends: index < 40 ? 1 : 2,
+        size: size,
+        arrowCount: (size * 2.2).round() + index % 6,
+        minArrowCount: (size * 1.4).round(),
+        minLength: 6,
+        maxLength: 14,
+        minBends: index < 15 ? 1 : 2,
         maxInitialMovable: 2,
-        minShapeCoverage: 0.48,
-        difficulty: 6,
+        minShapeCoverage: 0.62,
+        difficulty: 7,
       );
     }
     if (index < 400) {
       final progress = (index - 100) ~/ 100;
+      final size = 30 + progress;
       return _DifficultyConfig(
-        size: 16 + progress,
-        arrowCount: 24 + progress * 3 + index % 4,
-        minArrowCount: 18 + progress * 2,
-        minLength: 4,
-        maxLength: 10,
+        size: size,
+        arrowCount: (size * 2.4).round() + index % 6,
+        minArrowCount: (size * 1.5).round(),
+        minLength: 6,
+        maxLength: 15,
         minBends: 2,
-        maxInitialMovable: 3,
-        minShapeCoverage: 0.52,
-        difficulty: 7 + progress,
+        maxInitialMovable: 2,
+        minShapeCoverage: 0.64,
+        difficulty: 8 + progress,
       );
     }
     if (index < 750) {
       final progress = (index - 400) ~/ 120;
+      final size = 34 + progress;
       return _DifficultyConfig(
-        size: 20 + progress,
-        arrowCount: 32 + progress * 3 + index % 4,
-        minArrowCount: 24 + progress * 2,
-        minLength: 5,
-        maxLength: 11,
+        size: size,
+        arrowCount: (size * 2.5).round() + index % 6,
+        minArrowCount: (size * 1.5).round(),
+        minLength: 6,
+        maxLength: 16,
         minBends: 2,
-        maxInitialMovable: 4,
-        minShapeCoverage: 0.55,
-        difficulty: 8 + progress ~/ 2,
+        maxInitialMovable: 2,
+        minShapeCoverage: 0.66,
+        difficulty: 9 + progress ~/ 2,
       );
     }
+    const size = 38;
     return _DifficultyConfig(
-      size: 24,
-      arrowCount: 40 + index % 6,
-      minArrowCount: 24,
-      minLength: 5,
-      maxLength: 12,
+      size: size,
+      arrowCount: (size * 2.6).round() + index % 6,
+      minArrowCount: (size * 1.5).round(),
+      minLength: 7,
+      maxLength: 17,
       minBends: 3,
-      maxInitialMovable: 5,
-      minShapeCoverage: 0.58,
+      maxInitialMovable: 3,
+      minShapeCoverage: 0.66,
       difficulty: 10,
     );
   }
