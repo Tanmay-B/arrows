@@ -15,6 +15,7 @@ class GameProvider extends ChangeNotifier {
   late Board _board;
   late LevelDef _level;
   int _levelIndex = 0;
+  int _boardSession = 0;
   GameStatus _status = GameStatus.playing;
   bool _isAnimating = false;
   bool _showShapeBackground = true;
@@ -25,6 +26,7 @@ class GameProvider extends ChangeNotifier {
   Board get board => _board;
   LevelDef get level => _level;
   int get levelIndex => _levelIndex;
+  int get boardSession => _boardSession;
   int get levelCount => LevelCatalog.levelCount;
   GameStatus get status => _status;
   bool get isAnimating => _isAnimating;
@@ -38,6 +40,7 @@ class GameProvider extends ChangeNotifier {
     _levelIndex = index.clamp(0, LevelCatalog.levelCount - 1);
     _level = LevelCatalog.byIndex(_levelIndex);
     _board = Board.fromLevel(_level);
+    _boardSession++;
     _status = GameStatus.playing;
     _isAnimating = false;
     _showShapeBackground = true;

@@ -16,18 +16,22 @@ class GameBoard extends StatefulWidget {
   State<GameBoard> createState() => _GameBoardState();
 }
 
-class _GameBoardState extends State<GameBoard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
+  late final AnimationController _moveController;
+  AnimationController? _previewController;
   final TransformationController _transformController =
       TransformationController();
+
   String? _movingId;
   int _exitDistance = 0;
+  int? _previewBoardSession;
+  int _previewGeneration = 0;
+  bool _previewActive = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this)
+    _moveController = AnimationController(vsync: this)
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
           context.read<GameProvider>().completePendingMove();
@@ -35,19 +39,120 @@ class _GameBoardState extends State<GameBoard>
             _movingId = null;
             _exitDistance = 0;
           });
-          _controller.reset();
+          _moveController.reset();
         }
       });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _moveController.dispose();
+    _previewController?.dispose();
     _transformController.dispose();
     super.dispose();
   }
 
+  Matrix4 _matrixForScale(double scale, Size viewport, Size boardSize) {
+    final dx = (viewport.width - boardSize.width * scale) / 2;
+    final dy = (viewport.height - boardSize.height * scale) / 2;
+    return Matrix4.identity()
+      ..translateByDouble(dx, dy, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
+  }
+
+  bool _hasValidViewport(Size viewport, Size boardSize) {
+    return viewport.width > 0 &&
+        viewport.height > 0 &&
+        boardSize.width > 0 &&
+        boardSize.height > 0;
+  }
+
+  ({double fitScale, double minScale, double maxScale})? _zoomLimits(
+    Size viewport,
+    Size boardSize,
+  ) {
+    if (!_hasValidViewport(viewport, boardSize)) return null;
+
+    final fitScale = math.min(
+      viewport.width / boardSize.width,
+      viewport.height / boardSize.height,
+    );
+    if (!fitScale.isFinite || fitScale <= 0) return null;
+
+    final minScale = math.max(0.01, fitScale * 0.8);
+    final maxScale = math.max(
+      minScale * 2,
+      math.max(4.0, 2 / fitScale),
+    );
+    return (fitScale: fitScale, minScale: minScale, maxScale: maxScale);
+  }
+
+  void _startLevelPreview({
+    required int boardSession,
+    required Size viewport,
+    required Size boardSize,
+    required double minScale,
+    required double maxScale,
+    required double fitScale,
+  }) {
+    if (_previewBoardSession == boardSession) return;
+    if (!_hasValidViewport(viewport, boardSize)) return;
+    if (minScale <= 0 || maxScale <= minScale) return;
+
+    _previewBoardSession = boardSession;
+
+    final generation = ++_previewGeneration;
+    _previewController?.dispose();
+    _previewController = null;
+
+    final zoomOutScale = minScale;
+    final defaultScale = math
+        .min(1.0, fitScale * 2.2)
+        .clamp(minScale * 1.15, maxScale * 0.85);
+
+    _transformController.value = _matrixForScale(
+      zoomOutScale,
+      viewport,
+      boardSize,
+    );
+    setState(() => _previewActive = true);
+
+    Future<void>.delayed(const Duration(seconds: 2), () async {
+      if (!mounted || generation != _previewGeneration) return;
+
+      _previewController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 750),
+      );
+
+      final animation = CurvedAnimation(
+        parent: _previewController!,
+        curve: Curves.easeInOutCubic,
+      );
+
+      animation.addListener(() {
+        final scale =
+            zoomOutScale + (defaultScale - zoomOutScale) * animation.value;
+        _transformController.value = _matrixForScale(
+          scale,
+          viewport,
+          boardSize,
+        );
+      });
+
+      _previewController!.addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() => _previewActive = false);
+        }
+      });
+
+      await _previewController!.forward();
+    });
+  }
+
   void _tapArrow(String arrowId) {
+    if (_previewActive) return;
+
     final provider = context.read<GameProvider>();
     final result = provider.tapArrow(arrowId);
 
@@ -64,10 +169,10 @@ class _GameBoardState extends State<GameBoard>
       _movingId = arrowId;
       _exitDistance = result.exitDistance;
     });
-    _controller.duration = Duration(
+    _moveController.duration = Duration(
       milliseconds: 90 + result.exitDistance * 28,
     );
-    _controller.forward(from: 0);
+    _moveController.forward(from: 0);
   }
 
   @override
@@ -84,63 +189,84 @@ class _GameBoardState extends State<GameBoard>
           board.cols * cellSize,
           board.rows * cellSize,
         );
-        final fitScale = math.min(
-          constraints.maxWidth / boardSize.width,
-          constraints.maxHeight / boardSize.height,
-        );
+        final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+        final zoom = _zoomLimits(viewport, boardSize);
+        if (zoom == null) {
+          return const SizedBox.shrink();
+        }
+
+        if (_previewBoardSession != provider.boardSession) {
+          _transformController.value = _matrixForScale(
+            zoom.minScale,
+            viewport,
+            boardSize,
+          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _startLevelPreview(
+              boardSession: provider.boardSession,
+              viewport: viewport,
+              boardSize: boardSize,
+              minScale: zoom.minScale,
+              maxScale: zoom.maxScale,
+              fitScale: zoom.fitScale,
+            );
+          });
+        }
 
         return ClipRect(
           child: SizedBox(
-            width: constraints.maxWidth,
-            height: constraints.maxHeight,
+            width: viewport.width,
+            height: viewport.height,
             child: InteractiveViewer(
-              key: ValueKey(provider.levelIndex),
               transformationController: _transformController,
               constrained: false,
-              minScale: fitScale * 0.8,
-              maxScale: math.max(4.0, 1 / fitScale * 2),
-              panEnabled: true,
-              scaleEnabled: true,
+              minScale: zoom.minScale,
+              maxScale: zoom.maxScale,
+              panEnabled: !_previewActive,
+              scaleEnabled: !_previewActive,
               boundaryMargin: const EdgeInsets.all(120),
               clipBehavior: Clip.hardEdge,
-            child: SizedBox(
-              width: boardSize.width,
-              height: boardSize.height,
-              child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp:
-                  provider.status == GameStatus.playing && _movingId == null
-                  ? (details) {
-                      final id = _hitTest(
-                        details.localPosition,
-                        boardSize,
-                        board,
+              child: SizedBox(
+                width: boardSize.width,
+                height: boardSize.height,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp:
+                      !_previewActive &&
+                          provider.status == GameStatus.playing &&
+                          _movingId == null
+                      ? (details) {
+                          final id = _hitTest(
+                            details.localPosition,
+                            boardSize,
+                            board,
+                          );
+                          if (id != null) _tapArrow(id);
+                        }
+                      : null,
+                  child: AnimatedBuilder(
+                    animation: _moveController,
+                    builder: (context, _) {
+                      final progress = _moveController.value;
+                      return CustomPaint(
+                        painter: _ArrowBoardPainter(
+                          board: board,
+                          shapeCells: shapeCells,
+                          showShapeBackground: showShapeBackground,
+                          movingId: _movingId,
+                          movingProgress: progress,
+                          exitDistance: _exitDistance,
+                          rejectedId: provider.lastRejectedId,
+                        ),
                       );
-                      if (id != null) _tapArrow(id);
-                    }
-                  : null,
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) {
-                  final progress = _controller.value;
-                  return CustomPaint(
-                    painter: _ArrowBoardPainter(
-                      board: board,
-                      shapeCells: shapeCells,
-                      showShapeBackground: showShapeBackground,
-                      movingId: _movingId,
-                      movingProgress: progress,
-                      exitDistance: _exitDistance,
-                      rejectedId: provider.lastRejectedId,
-                    ),
-                  );
-                },
+                    },
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
+        );
       },
     );
   }

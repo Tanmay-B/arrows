@@ -13,98 +13,110 @@ class GameScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Column(
                 children: [
-                  IconButton(
-                    onPressed: provider.restart,
-                    icon: const Icon(Icons.arrow_back_rounded),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: provider.restart,
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Level ${provider.levelIndex + 1}',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFB07B26),
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: provider.restart,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: Text(
-                      'Level ${provider.levelIndex + 1}',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFFB07B26),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      3,
+                      (index) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: Icon(
+                          Icons.water_drop_rounded,
+                          size: 25,
+                          color: index < provider.lives
+                              ? const Color(0xFF56B8E8)
+                              : colorScheme.outlineVariant,
+                        ),
                       ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: provider.restart,
-                    icon: const Icon(Icons.refresh_rounded),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  3,
-                  (index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: Icon(
-                      Icons.water_drop_rounded,
-                      size: 25,
-                      color: index < provider.lives
-                          ? const Color(0xFF56B8E8)
-                          : colorScheme.outlineVariant,
+                  const SizedBox(height: 6),
+                  Text(
+                    provider.level.name,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                provider.level.name,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ClipRect(
-                  child: const GameBoard(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _RoundAction(
-                    icon: provider.showShapeBackground
-                        ? Icons.grid_view_rounded
-                        : Icons.grid_off_rounded,
-                    label: provider.showShapeBackground
-                        ? '${provider.board.arrows.length} left'
-                        : 'Show grid',
-                    onTap: provider.toggleShapeBackground,
-                  ),
-                  const SizedBox(width: 28),
-                  _RoundAction(
-                    icon: Icons.lightbulb_outline_rounded,
-                    label: 'Hint',
-                    onTap: () {},
-                  ),
                 ],
               ),
-              if (provider.status == GameStatus.won) ...[
-                const SizedBox(height: 16),
-                _WinBanner(
-                  isLastLevel: provider.levelIndex >= provider.levelCount - 1,
-                  onNext: provider.nextLevel,
-                  onRestart: provider.restart,
-                ),
-              ],
-              if (provider.status == GameStatus.lost) ...[
-                const SizedBox(height: 16),
-                _LostBanner(onRestart: provider.restart),
-              ],
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            const Expanded(
+              child: ClipRect(
+                child: GameBoard(),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _RoundAction(
+                        icon: provider.showShapeBackground
+                            ? Icons.grid_view_rounded
+                            : Icons.grid_off_rounded,
+                        label: provider.showShapeBackground
+                            ? '${provider.board.arrows.length} left'
+                            : 'Show grid',
+                        onTap: provider.toggleShapeBackground,
+                      ),
+                      const SizedBox(width: 28),
+                      _RoundAction(
+                        icon: Icons.lightbulb_outline_rounded,
+                        label: 'Hint',
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                  if (provider.status == GameStatus.won) ...[
+                    const SizedBox(height: 16),
+                    _WinBanner(
+                      isLastLevel:
+                          provider.levelIndex >= provider.levelCount - 1,
+                      onNext: provider.nextLevel,
+                      onRestart: provider.restart,
+                    ),
+                  ],
+                  if (provider.status == GameStatus.lost) ...[
+                    const SizedBox(height: 16),
+                    _LostBanner(onRestart: provider.restart),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
