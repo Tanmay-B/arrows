@@ -18,11 +18,14 @@ class GameProvider extends ChangeNotifier {
   int _boardSession = 0;
   GameStatus _status = GameStatus.playing;
   bool _isAnimating = false;
+  bool _isLoadingLevel = false;
   bool _showShapeBackground = true;
   int _lives = 3;
   String? _lastRejectedId;
   MoveSuccess? _pendingMove;
   String? _hintedArrowId;
+  LevelDef? _preloadedLevel;
+  int? _preloadedLevelIndex;
 
   Board get board => _board;
   LevelDef get level => _level;
@@ -31,6 +34,7 @@ class GameProvider extends ChangeNotifier {
   int get levelCount => LevelCatalog.levelCount;
   GameStatus get status => _status;
   bool get isAnimating => _isAnimating;
+  bool get isLoadingLevel => _isLoadingLevel;
   bool get showShapeBackground => _showShapeBackground;
   int get lives => _lives;
   String? get lastRejectedId => _lastRejectedId;
@@ -38,10 +42,15 @@ class GameProvider extends ChangeNotifier {
   MoveSuccess? get pendingMove => _pendingMove;
   Set<String> get movableIds => _engine.getMovableIds(_board).toSet();
   bool get canGoBack => _levelIndex > 0;
+  bool get hasNextLevel => _levelIndex < LevelCatalog.levelCount - 1;
+  bool get isNextLevelReady =>
+      hasNextLevel &&
+      _preloadedLevelIndex == _levelIndex + 1 &&
+      _preloadedLevel != null;
 
-  void loadLevel(int index) {
-    _levelIndex = index.clamp(0, LevelCatalog.levelCount - 1);
-    _level = LevelCatalog.byIndex(_levelIndex);
+  void _applyLevel(int index, LevelDef level) {
+    _levelIndex = index;
+    _level = level;
     _board = Board.fromLevel(_level);
     _boardSession++;
     _status = GameStatus.playing;
@@ -51,7 +60,24 @@ class GameProvider extends ChangeNotifier {
     _lastRejectedId = null;
     _pendingMove = null;
     _hintedArrowId = null;
+    _preloadedLevel = null;
+    _preloadedLevelIndex = null;
     notifyListeners();
+  }
+
+  void loadLevel(int index, {LevelDef? preloaded}) {
+    final safeIndex = index.clamp(0, LevelCatalog.levelCount - 1);
+    if (preloaded != null) {
+      _applyLevel(safeIndex, preloaded);
+      return;
+    }
+
+    if (LevelCatalog.isCached(safeIndex)) {
+      _applyLevel(safeIndex, LevelCatalog.byIndex(safeIndex));
+      return;
+    }
+
+    _applyLevel(safeIndex, LevelCatalog.byIndex(safeIndex));
   }
 
   void restart() => loadLevel(_levelIndex);
@@ -62,10 +88,42 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  void nextLevel() {
-    if (_levelIndex < LevelCatalog.levelCount - 1) {
-      loadLevel(_levelIndex + 1);
+  Future<void> continueToNextLevel() async {
+    if (!hasNextLevel) {
+      restart();
+      return;
     }
+
+    final nextIndex = _levelIndex + 1;
+    LevelDef level;
+
+    if (_preloadedLevelIndex == nextIndex && _preloadedLevel != null) {
+      level = _preloadedLevel!;
+    } else {
+      _isLoadingLevel = true;
+      notifyListeners();
+      try {
+        level = await LevelCatalog.byIndexAsync(nextIndex);
+      } finally {
+        _isLoadingLevel = false;
+      }
+    }
+
+    _applyLevel(nextIndex, level);
+  }
+
+  void _preloadNextLevel() {
+    if (!hasNextLevel) return;
+    final nextIndex = _levelIndex + 1;
+    if (_preloadedLevelIndex == nextIndex) return;
+
+    LevelCatalog.byIndexAsync(nextIndex).then((level) {
+      if (_levelIndex + 1 == nextIndex) {
+        _preloadedLevelIndex = nextIndex;
+        _preloadedLevel = level;
+        notifyListeners();
+      }
+    });
   }
 
   /// Returns the hinted arrow id, or null if no hint is available.
@@ -132,6 +190,7 @@ class GameProvider extends ChangeNotifier {
 
     if (_engine.isWon(_board)) {
       _status = GameStatus.won;
+      _preloadNextLevel();
     }
 
     notifyListeners();

@@ -117,7 +117,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     );
     setState(() => _previewActive = true);
 
-    Future<void>.delayed(const Duration(seconds: 2), () async {
+    Future<void>.delayed(const Duration(seconds: 1), () async {
       if (!mounted || generation != _previewGeneration) return;
 
       _previewController = AnimationController(
