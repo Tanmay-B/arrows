@@ -5,6 +5,7 @@ import '../providers/game_provider.dart';
 import '../services/ad_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/game_board.dart';
+import 'home_screen.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -51,6 +52,37 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Widget _buildConfettiOverlay() {
+    return IgnorePointer(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConfettiWidget(
+          confettiController: _confettiController,
+          blastDirectionality: BlastDirectionality.explosive,
+          emissionFrequency: 0.08,
+          numberOfParticles: 24,
+          maxBlastForce: 28,
+          minBlastForce: 12,
+          gravity: 0.2,
+          colors: const [
+            Color(0xFFB07B26),
+            Color(0xFF56B8E8),
+            Color(0xFF7BC67E),
+            Color(0xFFE8A756),
+            Color(0xFF9B7EDE),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _goToNextBoard() async {
+    final provider = context.read<GameProvider>();
+    await AdService.instance.showInterstitial();
+    if (!mounted) return;
+    await provider.continueToNextLevel();
+  }
+
   Future<void> _showWinDialog(GameProvider provider) async {
     final isLastLevel = !provider.hasNextLevel;
 
@@ -58,60 +90,65 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return Consumer<GameProvider>(
-          builder: (context, provider, _) {
-            final nextReady = provider.isNextLevelReady;
+        return Stack(
+          children: [
+            Center(
+              child: Consumer<GameProvider>(
+                builder: (context, provider, _) {
+                  final nextReady = provider.isNextLevelReady;
 
-            return AlertDialog(
-              icon: const Icon(Icons.emoji_events_rounded),
-              title: const Text('Level Cleared!'),
-              content: Text(
-                isLastLevel
-                    ? 'You cleared every board. Play again from the start?'
-                    : 'Great job! Continue to the next board or replay this one.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    provider.restart();
-                  },
-                  child: const Text('Replay'),
-                ),
-                if (!isLastLevel)
-                  FilledButton(
-                    onPressed: nextReady
-                        ? () async {
-                            Navigator.of(dialogContext).pop();
-                            await context
-                                .read<GameProvider>()
-                                .continueToNextLevel();
-                          }
-                        : null,
-                    child: nextReady
-                        ? const Text('Next Board')
-                        : const SizedBox(
-                            width: 110,
-                            height: 20,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                  return AlertDialog(
+                    icon: const Icon(Icons.emoji_events_rounded),
+                    title: const Text('Level Cleared!'),
+                    content: Text(
+                      isLastLevel
+                          ? 'You cleared every board. Play again from the start?'
+                          : 'Great job! Continue to the next board or replay this one.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          provider.restart();
+                        },
+                        child: const Text('Replay'),
+                      ),
+                      if (!isLastLevel)
+                        FilledButton(
+                          onPressed: nextReady
+                              ? () async {
+                                  Navigator.of(dialogContext).pop();
+                                  await _goToNextBoard();
+                                }
+                              : null,
+                          child: nextReady
+                              ? const Text('Next Board')
+                              : const SizedBox(
+                                  width: 110,
+                                  height: 20,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                      SizedBox(width: 10),
+                                      Text('Loading...'),
+                                    ],
                                   ),
                                 ),
-                                SizedBox(width: 10),
-                                Text('Loading...'),
-                              ],
-                            ),
-                          ),
-                  ),
-              ],
-            );
-          },
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            Positioned.fill(child: _buildConfettiOverlay()),
+          ],
         );
       },
     );
@@ -123,6 +160,7 @@ class _GameScreenState extends State<GameScreen> {
 
     _celebratedSession = provider.boardSession;
     _confettiController.play();
+    AdService.instance.preloadInterstitial();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -154,10 +192,15 @@ class _GameScreenState extends State<GameScreen> {
                       SizedBox(
                         width: 48,
                         child: IconButton(
-                          onPressed: provider.canGoBack
-                              ? provider.previousLevel
-                              : null,
-                          icon: const Icon(Icons.arrow_back_rounded),
+                          onPressed: () {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const HomeScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          },
+                          icon: const Icon(Icons.home_rounded),
                           visualDensity: VisualDensity.compact,
                         ),
                       ),
@@ -254,25 +297,6 @@ class _GameScreenState extends State<GameScreen> {
                 const AdBanner(),
               ],
             ),
-          ),
-        ),
-        Align(
-          alignment: Alignment.topCenter,
-          child: ConfettiWidget(
-            confettiController: _confettiController,
-            blastDirectionality: BlastDirectionality.explosive,
-            emissionFrequency: 0.08,
-            numberOfParticles: 24,
-            maxBlastForce: 28,
-            minBlastForce: 12,
-            gravity: 0.2,
-            colors: const [
-              Color(0xFFB07B26),
-              Color(0xFF56B8E8),
-              Color(0xFF7BC67E),
-              Color(0xFFE8A756),
-              Color(0xFF9B7EDE),
-            ],
           ),
         ),
         if (provider.isLoadingLevel)

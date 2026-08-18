@@ -11,7 +11,7 @@ class AdService {
   static final AdService instance = AdService._();
 
   InterstitialAd? _interstitial;
-  bool _loading = false;
+  Future<void>? _loadFuture;
 
   static String get _interstitialUnitId {
     if (Platform.isAndroid) {
@@ -23,31 +23,45 @@ class AdService {
     return 'ca-app-pub-3940256099942544/1033173712';
   }
 
-  Future<void> preloadInterstitial() async {
-    if (_interstitial != null || _loading) return;
-    _loading = true;
+  Future<void> preloadInterstitial() {
+    if (_interstitial != null) {
+      return Future.value();
+    }
+    if (_loadFuture != null) {
+      return _loadFuture!;
+    }
 
-    await InterstitialAd.load(
+    final completer = Completer<void>();
+    _loadFuture = completer.future;
+
+    InterstitialAd.load(
       adUnitId: _interstitialUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitial = ad;
-          _loading = false;
+          if (!completer.isCompleted) completer.complete();
         },
         onAdFailedToLoad: (_) {
           _interstitial = null;
-          _loading = false;
+          if (!completer.isCompleted) completer.complete();
         },
       ),
     );
+
+    return completer.future.whenComplete(() {
+      _loadFuture = null;
+    });
   }
 
   /// Shows an interstitial if ready, then runs [onFinished] after it closes.
   Future<void> showInterstitial({VoidCallback? onFinished}) async {
+    if (_interstitial == null) {
+      await preloadInterstitial();
+    }
+
     final ad = _interstitial;
     if (ad == null) {
-      await preloadInterstitial();
       onFinished?.call();
       return;
     }

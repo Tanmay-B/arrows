@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
-import 'screens/game_screen.dart';
+import 'screens/home_screen.dart';
 import 'services/ad_service.dart';
 
 Future<void> main() async {
@@ -48,7 +48,7 @@ class ArrowsApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const GameScreen(),
+        home: const HomeScreen(),
       ),
     );
   }

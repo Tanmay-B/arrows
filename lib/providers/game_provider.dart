@@ -41,7 +41,6 @@ class GameProvider extends ChangeNotifier {
   String? get hintedArrowId => _hintedArrowId;
   MoveSuccess? get pendingMove => _pendingMove;
   Set<String> get movableIds => _engine.getMovableIds(_board).toSet();
-  bool get canGoBack => _levelIndex > 0;
   bool get hasNextLevel => _levelIndex < LevelCatalog.levelCount - 1;
   bool get isNextLevelReady =>
       hasNextLevel &&
@@ -81,12 +80,6 @@ class GameProvider extends ChangeNotifier {
   }
 
   void restart() => loadLevel(_levelIndex);
-
-  void previousLevel() {
-    if (_levelIndex > 0) {
-      loadLevel(_levelIndex - 1);
-    }
-  }
 
   Future<void> continueToNextLevel() async {
     if (!hasNextLevel) {
