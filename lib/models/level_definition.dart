@@ -7,6 +7,8 @@ class LevelDef {
     required this.rows,
     required this.cols,
     required this.arrows,
+    required this.shapeName,
+    required this.shapeCells,
     this.difficulty = 1,
     this.solution = const [],
   });
@@ -16,6 +18,8 @@ class LevelDef {
   final int rows;
   final int cols;
   final List<Arrow> arrows;
+  final String shapeName;
+  final Set<GridPoint> shapeCells;
   final int difficulty;
 
   /// Arrow IDs in one guaranteed removal order.

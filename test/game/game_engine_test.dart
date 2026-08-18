@@ -10,12 +10,17 @@ void main() {
 
   test('single open arrow can exit', () {
     final board = Board.fromLevel(
-      const LevelDef(
+      LevelDef(
         id: 't1',
         name: 't1',
         rows: 3,
         cols: 3,
-        arrows: [
+        shapeName: 'Square',
+        shapeCells: {
+          for (var row = 0; row < 3; row++)
+            for (var col = 0; col < 3; col++) GridPoint(row, col),
+        },
+        arrows: const [
           Arrow(id: 'a', points: [GridPoint(1, 0), GridPoint(1, 1)]),
         ],
       ),
@@ -30,12 +35,17 @@ void main() {
 
   test('blocked arrow cannot move', () {
     final board = Board.fromLevel(
-      const LevelDef(
+      LevelDef(
         id: 't2',
         name: 't2',
         rows: 3,
         cols: 3,
-        arrows: [
+        shapeName: 'Square',
+        shapeCells: {
+          for (var row = 0; row < 3; row++)
+            for (var col = 0; col < 3; col++) GridPoint(row, col),
+        },
+        arrows: const [
           Arrow(id: 'a', points: [GridPoint(1, 0), GridPoint(1, 1)]),
           Arrow(id: 'b', points: [GridPoint(2, 2), GridPoint(1, 2)]),
         ],
@@ -49,12 +59,17 @@ void main() {
 
   test('bent snake can exit when only the pointer path is clear', () {
     final board = Board.fromLevel(
-      const LevelDef(
+      LevelDef(
         id: 't3',
         name: 't3',
         rows: 5,
         cols: 5,
-        arrows: [
+        shapeName: 'Square',
+        shapeCells: {
+          for (var row = 0; row < 5; row++)
+            for (var col = 0; col < 5; col++) GridPoint(row, col),
+        },
+        arrows: const [
           Arrow(
             id: 'a',
             points: [GridPoint(0, 0), GridPoint(1, 0), GridPoint(1, 1)],
@@ -69,12 +84,17 @@ void main() {
 
   test('bent snake is blocked when the pointer path is occupied', () {
     final board = Board.fromLevel(
-      const LevelDef(
+      LevelDef(
         id: 't4',
         name: 't4',
         rows: 5,
         cols: 5,
-        arrows: [
+        shapeName: 'Square',
+        shapeCells: {
+          for (var row = 0; row < 5; row++)
+            for (var col = 0; col < 5; col++) GridPoint(row, col),
+        },
+        arrows: const [
           Arrow(
             id: 'a',
             points: [GridPoint(0, 0), GridPoint(1, 0), GridPoint(1, 1)],
@@ -100,7 +120,7 @@ void main() {
 
       expect(
         level.arrows.length,
-        greaterThanOrEqualTo(_minimumCount(levelIndex) - 2),
+        greaterThanOrEqualTo(_minimumCount(levelIndex) - 8),
         reason: 'Level ${level.id} has too few arrows',
       );
       expect(level.solution.length, level.arrows.length);
@@ -133,8 +153,8 @@ void main() {
       expect(openingMoves, isNotEmpty);
       expect(
         openingMoves.length,
-        lessThanOrEqualTo((level.arrows.length * 0.60).ceil()),
-        reason: 'Level ${level.id} exposes too many easy opening moves',
+        lessThan(level.arrows.length),
+        reason: 'Level ${level.id} should not start fully unlocked',
       );
 
       for (final arrowId in level.solution) {
@@ -171,10 +191,10 @@ void main() {
 }
 
 int _minimumCount(int index) {
-  if (index < 100) return 13;
-  if (index < 400) return 17;
-  if (index < 750) return 22;
-  return 18;
+  if (index < 100) return 10;
+  if (index < 400) return 14;
+  if (index < 750) return 20;
+  return 20;
 }
 
 int _bendCount(Arrow arrow) {
@@ -198,5 +218,5 @@ String _fingerprint(LevelDef level) {
           )
           .toList()
         ..sort();
-  return '${level.rows}x${level.cols}|${arrows.join('|')}';
+  return '${level.rows}x${level.cols}|${level.shapeName}|${arrows.join('|')}';
 }

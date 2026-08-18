@@ -17,6 +17,7 @@ class GameProvider extends ChangeNotifier {
   int _levelIndex = 0;
   GameStatus _status = GameStatus.playing;
   bool _isAnimating = false;
+  bool _showShapeBackground = true;
   int _lives = 3;
   String? _lastRejectedId;
   MoveSuccess? _pendingMove;
@@ -27,6 +28,7 @@ class GameProvider extends ChangeNotifier {
   int get levelCount => LevelCatalog.levelCount;
   GameStatus get status => _status;
   bool get isAnimating => _isAnimating;
+  bool get showShapeBackground => _showShapeBackground;
   int get lives => _lives;
   String? get lastRejectedId => _lastRejectedId;
   MoveSuccess? get pendingMove => _pendingMove;
@@ -38,6 +40,7 @@ class GameProvider extends ChangeNotifier {
     _board = Board.fromLevel(_level);
     _status = GameStatus.playing;
     _isAnimating = false;
+    _showShapeBackground = true;
     _lives = 3;
     _lastRejectedId = null;
     _pendingMove = null;
@@ -71,8 +74,12 @@ class GameProvider extends ChangeNotifier {
     _isAnimating = true;
     _pendingMove = success;
     _lastRejectedId = null;
-    notifyListeners();
     return success;
+  }
+
+  void toggleShapeBackground() {
+    _showShapeBackground = !_showShapeBackground;
+    notifyListeners();
   }
 
   void clearRejected() {

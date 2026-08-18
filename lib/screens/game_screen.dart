@@ -71,9 +71,13 @@ class GameScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _RoundAction(
-                    icon: Icons.grid_view_rounded,
-                    label: '${provider.board.arrows.length} left',
-                    onTap: () {},
+                    icon: provider.showShapeBackground
+                        ? Icons.grid_view_rounded
+                        : Icons.grid_off_rounded,
+                    label: provider.showShapeBackground
+                        ? '${provider.board.arrows.length} left'
+                        : 'Show grid',
+                    onTap: provider.toggleShapeBackground,
                   ),
                   const SizedBox(width: 28),
                   _RoundAction(

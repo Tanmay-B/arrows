@@ -3,55 +3,67 @@ import 'dart:math';
 import '../models/arrow.dart';
 import '../models/direction.dart';
 import '../models/level_definition.dart';
+import 'level_shape.dart';
 
 /// Deterministic generator for dense, guaranteed-solvable snake-arrow puzzles.
 ///
-/// Snakes are inserted in reverse solution order. Every inserted snake can
-/// escape through the existing layout, so removing them in reverse insertion
-/// order always clears the generated board.
+/// Snakes are inserted in reverse solution order inside a unique level shape.
+/// Every inserted snake can escape through the existing layout, so removing them
+/// in reverse insertion order always clears the generated board.
 class LevelGenerator {
   const LevelGenerator();
 
   LevelDef generate(int levelIndex) {
     final config = _DifficultyConfig.forLevel(levelIndex);
+    final shape = LevelShape.forLevel(levelIndex, config.size);
     _GeneratedLayout? best;
 
-    final restartCount = levelIndex < 20 || levelIndex >= 750 ? 3 : 2;
+    final restartCount = levelIndex >= 750
+        ? 6
+        : levelIndex < 20
+        ? 4
+        : 3;
     for (var restart = 0; restart < restartCount; restart++) {
       final random = Random(_seedFor(levelIndex, restart));
-      final layout = _buildLayout(random, config);
+      final layout = _buildLayout(random, config, shape);
       if (layout == null) continue;
 
       if (best == null ||
           layout.arrows.length > best.arrows.length ||
           (layout.arrows.length == best.arrows.length &&
-              layout.initialMovableCount < best.initialMovableCount)) {
+              (layout.initialMovableCount < best.initialMovableCount ||
+                  (layout.initialMovableCount == best.initialMovableCount &&
+                      layout.shapeCoverage > best.shapeCoverage)))) {
         best = layout;
       }
 
       if (layout.arrows.length >= config.minArrowCount &&
-          layout.initialMovableCount <= config.maxInitialMovable) {
-        return _toLevel(levelIndex, config, layout);
+          layout.initialMovableCount <= config.maxInitialMovable &&
+          layout.shapeCoverage >= config.minShapeCoverage) {
+        return _toLevel(levelIndex, config, shape, layout);
       }
     }
 
     if (best == null) {
       throw StateError('Unable to generate level ${levelIndex + 1}');
     }
-    return _toLevel(levelIndex, config, best);
+    return _toLevel(levelIndex, config, shape, best);
   }
 
   LevelDef _toLevel(
     int levelIndex,
     _DifficultyConfig config,
+    LevelShape shape,
     _GeneratedLayout layout,
   ) {
     return LevelDef(
       id: '${levelIndex + 1}',
-      name: _levelName(levelIndex),
+      name: '${shape.displayName} · ${_levelName(levelIndex)}',
       rows: config.size,
       cols: config.size,
       arrows: List.unmodifiable(layout.arrows),
+      shapeName: shape.displayName,
+      shapeCells: Set.unmodifiable(shape.cells),
       difficulty: config.difficulty,
       solution: List.unmodifiable(
         layout.arrows.reversed.map((arrow) => arrow.id),
@@ -59,33 +71,41 @@ class LevelGenerator {
     );
   }
 
-  _GeneratedLayout? _buildLayout(Random random, _DifficultyConfig config) {
+  _GeneratedLayout? _buildLayout(
+    Random random,
+    _DifficultyConfig config,
+    LevelShape shape,
+  ) {
     final arrows = <Arrow>[];
     final occupied = <GridPoint>{};
     var movable = <Arrow>[];
 
     for (var index = 0; index < config.arrowCount; index++) {
       _ScoredCandidate? bestCandidate;
-      final needsBlocker = movable.isNotEmpty && index >= 2;
+      final needsBlocker = movable.isNotEmpty && index >= 1;
+      final emptyShapeCells = shape.cells.difference(occupied);
       final blockingCells = <GridPoint>{
         for (final arrow in movable)
           ..._sweptCells(
             arrow,
             config.size,
-          ).where((point) => !occupied.contains(point)),
+          ).where((point) => !occupied.contains(point) && shape.contains(point)),
       };
       final safeCells = {
         for (final direction in Direction.values)
-          direction: _safeCells(direction, occupied, config.size),
+          direction: _safeCells(direction, occupied, shape),
       };
 
-      for (var attempt = 0; attempt < 64; attempt++) {
+      for (var attempt = 0; attempt < 128; attempt++) {
         final candidate = _randomArrow(
           random,
           'a${index + 1}',
           config,
+          shape,
           blockingCells,
           safeCells,
+          emptyShapeCells,
+          strict: attempt < 96,
         );
         if (candidate == null ||
             candidate.points.any(occupied.contains) ||
@@ -104,7 +124,12 @@ class LevelGenerator {
             )
             .length;
         final bends = _bendCount(candidate);
-        final score = blockedCount * 100 + bends * 4 + candidate.points.length;
+        final shapeFill = candidate.points.where(shape.contains).length;
+        final score =
+            blockedCount * 120 +
+            bends * 8 +
+            candidate.points.length * 3 +
+            shapeFill * 2;
         final scored = _ScoredCandidate(candidate, blockedCount, score);
 
         if (bestCandidate == null || scored.score > bestCandidate.score) {
@@ -112,7 +137,7 @@ class LevelGenerator {
         }
 
         if (!needsBlocker || blockedCount > 0) {
-          if (attempt >= 10 || blockedCount > 1) break;
+          if (attempt >= 16 || blockedCount > 1) break;
         }
       }
 
@@ -133,31 +158,32 @@ class LevelGenerator {
       ];
     }
 
-    return _GeneratedLayout(arrows, movable.length);
+    final coverage = occupied.length / shape.cells.length;
+    return _GeneratedLayout(arrows, movable.length, coverage);
   }
 
   Arrow? _randomArrow(
     Random random,
     String id,
     _DifficultyConfig config,
+    LevelShape shape,
     Set<GridPoint> preferredCells,
     Map<Direction, Set<GridPoint>> safeCellsByDirection,
-  ) {
+    Set<GridPoint> emptyShapeCells, {
+    bool strict = true,
+  }) {
     final direction = Direction.values[random.nextInt(Direction.values.length)];
     final safeCells = safeCellsByDirection[direction]!;
     final possibleHeads = <GridPoint>[];
-    for (var row = 0; row < config.size; row++) {
-      for (var col = 0; col < config.size; col++) {
-        final head = GridPoint(row, col);
-        final beforeHead = GridPoint(
-          row - direction.dRow,
-          col - direction.dCol,
-        );
-        if (_inside(beforeHead, config.size) &&
-            safeCells.contains(head) &&
-            safeCells.contains(beforeHead)) {
-          possibleHeads.add(head);
-        }
+    for (final head in shape.cells) {
+      final beforeHead = GridPoint(
+        head.row - direction.dRow,
+        head.col - direction.dCol,
+      );
+      if (shape.contains(beforeHead) &&
+          safeCells.contains(head) &&
+          safeCells.contains(beforeHead)) {
+        possibleHeads.add(head);
       }
     }
     if (possibleHeads.isEmpty) return null;
@@ -165,7 +191,7 @@ class LevelGenerator {
 
     if (preferredCells.isNotEmpty) {
       for (final targetedHead in possibleHeads.take(
-        min(4, possibleHeads.length),
+        min(6, possibleHeads.length),
       )) {
         final targetedBefore = GridPoint(
           targetedHead.row - direction.dRow,
@@ -178,6 +204,7 @@ class LevelGenerator {
           beforeHead: targetedBefore,
           safeCells: safeCells,
           preferredCells: preferredCells,
+          shape: shape,
           config: config,
         );
         if (targeted != null) return targeted;
@@ -193,20 +220,25 @@ class LevelGenerator {
                   point.row - direction.dRow,
                   point.col - direction.dCol,
                 ),
-              ),
+              ) ||
+              emptyShapeCells.contains(point),
         )
         .toList();
     final headPool = preferredHeads.isNotEmpty ? preferredHeads : possibleHeads;
-    final head = headPool[random.nextInt(min(8, headPool.length))];
+    final head = headPool[random.nextInt(min(10, headPool.length))];
     final beforeHead = GridPoint(
       head.row - direction.dRow,
       head.col - direction.dCol,
     );
-    if (!_inside(beforeHead, config.size)) return null;
+    if (!shape.contains(beforeHead)) return null;
 
-    final targetLength =
-        config.minLength +
-        random.nextInt(config.maxLength - config.minLength + 1);
+    final targetLength = strict
+        ? config.minLength +
+            random.nextInt(config.maxLength - config.minLength + 1)
+        : config.minLength +
+            random.nextInt(
+              (config.maxLength - config.minLength).clamp(1, 3) + 1,
+            );
     final backwards = <GridPoint>[head, beforeHead];
     final visited = <GridPoint>{head, beforeHead};
 
@@ -220,16 +252,16 @@ class LevelGenerator {
       ]..shuffle(random);
       final valid = choices
           .where(
-            (point) =>
-                _inside(point, config.size) &&
-                !visited.contains(point) &&
-                safeCells.contains(point),
+            (point) => shape.contains(point) && !visited.contains(point),
           )
           .toList();
       if (valid.isEmpty) return null;
 
       final preferred = valid
-          .where(preferredCells.contains)
+          .where(
+            (point) =>
+                preferredCells.contains(point) || emptyShapeCells.contains(point),
+          )
           .toList(growable: false);
       final nextPool = preferred.isNotEmpty ? preferred : valid;
       final next = nextPool[random.nextInt(nextPool.length)];
@@ -239,7 +271,8 @@ class LevelGenerator {
 
     final points = backwards.reversed.toList(growable: false);
     final arrow = Arrow(id: id, points: points);
-    if (_bendCount(arrow) < config.minBends) return null;
+    final minBends = strict ? config.minBends : max(1, config.minBends - 1);
+    if (_bendCount(arrow) < minBends) return null;
     return arrow;
   }
 
@@ -250,6 +283,7 @@ class LevelGenerator {
     required GridPoint beforeHead,
     required Set<GridPoint> safeCells,
     required Set<GridPoint> preferredCells,
+    required LevelShape shape,
     required _DifficultyConfig config,
   }) {
     final queue = <List<GridPoint>>[
@@ -258,7 +292,7 @@ class LevelGenerator {
     var cursor = 0;
     var expansions = 0;
 
-    while (cursor < queue.length && expansions < 24) {
+    while (cursor < queue.length && expansions < 32) {
       final backwardsBody = queue[cursor++];
       final current = backwardsBody.last;
       final totalLength = backwardsBody.length + 1;
@@ -280,7 +314,7 @@ class LevelGenerator {
               (point) =>
                   point == head ||
                   backwardsBody.contains(point) ||
-                  !safeCells.contains(point),
+                  !shape.contains(point),
             )
             ..shuffle(random)
             ..sort(
@@ -300,14 +334,13 @@ class LevelGenerator {
   Set<GridPoint> _safeCells(
     Direction direction,
     Set<GridPoint> occupied,
-    int size,
+    LevelShape shape,
   ) {
     return {
-      for (var row = 0; row < size; row++)
-        for (var col = 0; col < size; col++)
-          if (!occupied.contains(GridPoint(row, col)) &&
-              _isSafeCell(GridPoint(row, col), direction, occupied, size))
-            GridPoint(row, col),
+      for (final point in shape.cells)
+        if (!occupied.contains(point) &&
+            _isSafeCell(point, direction, occupied, shape.rows))
+          point,
     };
   }
 
@@ -407,6 +440,7 @@ class _DifficultyConfig {
     required this.maxLength,
     required this.minBends,
     required this.maxInitialMovable,
+    required this.minShapeCoverage,
     required this.difficulty,
   });
 
@@ -417,18 +451,20 @@ class _DifficultyConfig {
   final int maxLength;
   final int minBends;
   final int maxInitialMovable;
+  final double minShapeCoverage;
   final int difficulty;
 
   factory _DifficultyConfig.forLevel(int index) {
     if (index < 100) {
       return _DifficultyConfig(
-        size: 12 + index ~/ 50,
-        arrowCount: 14 + index % 3,
-        minArrowCount: 13,
-        minLength: 3,
-        maxLength: 6,
-        minBends: 1,
-        maxInitialMovable: 3,
+        size: 14 + index ~/ 40,
+        arrowCount: 18 + index % 4,
+        minArrowCount: 12,
+        minLength: 4,
+        maxLength: 9,
+        minBends: index < 40 ? 1 : 2,
+        maxInitialMovable: 2,
+        minShapeCoverage: 0.48,
         difficulty: 6,
       );
     }
@@ -436,46 +472,54 @@ class _DifficultyConfig {
       final progress = (index - 100) ~/ 100;
       return _DifficultyConfig(
         size: 16 + progress,
-        arrowCount: 22 + progress * 3 + index % 3,
-        minArrowCount: 17 + progress * 2,
-        minLength: 3,
-        maxLength: 7,
-        minBends: 1,
-        maxInitialMovable: 5,
-        difficulty: 7,
+        arrowCount: 24 + progress * 3 + index % 4,
+        minArrowCount: 18 + progress * 2,
+        minLength: 4,
+        maxLength: 10,
+        minBends: 2,
+        maxInitialMovable: 3,
+        minShapeCoverage: 0.52,
+        difficulty: 7 + progress,
       );
     }
     if (index < 750) {
       final progress = (index - 400) ~/ 120;
       return _DifficultyConfig(
         size: 20 + progress,
-        arrowCount: 32 + progress * 3 + index % 3,
-        minArrowCount: 22 + progress * 2,
-        minLength: 3,
-        maxLength: 8,
-        minBends: 1,
-        maxInitialMovable: 7,
+        arrowCount: 32 + progress * 3 + index % 4,
+        minArrowCount: 24 + progress * 2,
+        minLength: 5,
+        maxLength: 11,
+        minBends: 2,
+        maxInitialMovable: 4,
+        minShapeCoverage: 0.55,
         difficulty: 8 + progress ~/ 2,
       );
     }
     return _DifficultyConfig(
       size: 24,
-      arrowCount: 42 + index % 7,
-      minArrowCount: 18,
-      minLength: 3,
-      maxLength: 8,
-      minBends: 1,
-      maxInitialMovable: 9,
+      arrowCount: 40 + index % 6,
+      minArrowCount: 24,
+      minLength: 5,
+      maxLength: 12,
+      minBends: 3,
+      maxInitialMovable: 5,
+      minShapeCoverage: 0.58,
       difficulty: 10,
     );
   }
 }
 
 class _GeneratedLayout {
-  const _GeneratedLayout(this.arrows, this.initialMovableCount);
+  const _GeneratedLayout(
+    this.arrows,
+    this.initialMovableCount,
+    this.shapeCoverage,
+  );
 
   final List<Arrow> arrows;
   final int initialMovableCount;
+  final double shapeCoverage;
 }
 
 class _ScoredCandidate {

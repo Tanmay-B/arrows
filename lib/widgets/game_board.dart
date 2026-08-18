@@ -25,20 +25,17 @@ class _GameBoardState extends State<GameBoard>
   @override
   void initState() {
     super.initState();
-    _controller =
-        AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 420),
-        )..addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            context.read<GameProvider>().completePendingMove();
-            setState(() {
-              _movingId = null;
-              _exitDistance = 0;
-            });
-            _controller.reset();
-          }
-        });
+    _controller = AnimationController(vsync: this)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          context.read<GameProvider>().completePendingMove();
+          setState(() {
+            _movingId = null;
+            _exitDistance = 0;
+          });
+          _controller.reset();
+        }
+      });
   }
 
   @override
@@ -64,6 +61,9 @@ class _GameBoardState extends State<GameBoard>
       _movingId = arrowId;
       _exitDistance = result.exitDistance;
     });
+    _controller.duration = Duration(
+      milliseconds: 90 + result.exitDistance * 28,
+    );
     _controller.forward(from: 0);
   }
 
@@ -71,6 +71,8 @@ class _GameBoardState extends State<GameBoard>
   Widget build(BuildContext context) {
     final provider = context.watch<GameProvider>();
     final board = provider.board;
+    final shapeCells = provider.level.shapeCells;
+    final showShapeBackground = provider.showShapeBackground;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -86,7 +88,7 @@ class _GameBoardState extends State<GameBoard>
             size: boardSize,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTapUp: provider.status == GameStatus.playing
+              onTapUp: provider.status == GameStatus.playing && _movingId == null
                   ? (details) {
                       final id = _hitTest(
                         details.localPosition,
@@ -99,12 +101,12 @@ class _GameBoardState extends State<GameBoard>
               child: AnimatedBuilder(
                 animation: _controller,
                 builder: (context, _) {
-                  final progress = Curves.easeInCubic.transform(
-                    _controller.value,
-                  );
+                  final progress = _controller.value;
                   return CustomPaint(
                     painter: _ArrowBoardPainter(
                       board: board,
+                      shapeCells: shapeCells,
+                      showShapeBackground: showShapeBackground,
                       movingId: _movingId,
                       movingProgress: progress,
                       exitDistance: _exitDistance,
@@ -155,6 +157,8 @@ class _GameBoardState extends State<GameBoard>
 class _ArrowBoardPainter extends CustomPainter {
   _ArrowBoardPainter({
     required this.board,
+    required this.shapeCells,
+    required this.showShapeBackground,
     required this.movingId,
     required this.movingProgress,
     required this.exitDistance,
@@ -162,6 +166,8 @@ class _ArrowBoardPainter extends CustomPainter {
   });
 
   final Board board;
+  final Set<GridPoint> shapeCells;
+  final bool showShapeBackground;
   final String? movingId;
   final double movingProgress;
   final int exitDistance;
@@ -170,6 +176,9 @@ class _ArrowBoardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final metrics = _BoardMetrics(size, board);
+    if (showShapeBackground) {
+      _drawShape(canvas, metrics);
+    }
 
     for (final arrow in board.arrows.values) {
       final points = arrow.id == movingId
@@ -180,8 +189,56 @@ class _ArrowBoardPainter extends CustomPainter {
               exitDistance,
             )
           : arrow.points.map(metrics.offsetFor).toList();
-      _drawArrow(canvas, points, arrow.direction, metrics, arrow.id == rejectedId);
+      _drawArrow(
+        canvas,
+        points,
+        arrow.direction,
+        metrics,
+        arrow.id == rejectedId,
+      );
     }
+  }
+
+  void _drawShape(Canvas canvas, _BoardMetrics metrics) {
+    if (shapeCells.isEmpty) return;
+
+    final fill = Path();
+    for (final cell in shapeCells) {
+      final center = metrics.offsetFor(cell);
+      fill.addRect(
+        Rect.fromCenter(
+          center: center,
+          width: metrics.cellSize * 0.92,
+          height: metrics.cellSize * 0.92,
+        ),
+      );
+    }
+
+    canvas.drawPath(
+      fill,
+      Paint()
+        ..color = const Color(0xFFEDE4D8)
+        ..style = PaintingStyle.fill,
+    );
+
+    final outline = Path();
+    for (final cell in shapeCells) {
+      final center = metrics.offsetFor(cell);
+      outline.addRect(
+        Rect.fromCenter(
+          center: center,
+          width: metrics.cellSize * 0.92,
+          height: metrics.cellSize * 0.92,
+        ),
+      );
+    }
+    canvas.drawPath(
+      outline,
+      Paint()
+        ..color = const Color(0xFFD8CBB8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.0, metrics.cellSize * 0.04),
+    );
   }
 
   List<Offset> _ropePointsAtProgress(
@@ -190,17 +247,32 @@ class _ArrowBoardPainter extends CustomPainter {
     double progress,
     int exitDistance,
   ) {
-    final totalSteps = exitDistance * progress;
-    final completedSteps = totalSteps.floor();
-    final fraction = totalSteps - completedSteps;
-    final fromPoints = arrow.pointsAtStep(completedSteps);
-    final toPoints = arrow.pointsAtStep(completedSteps + 1);
+    if (progress <= 0) {
+      return arrow.points.map(metrics.offsetFor).toList();
+    }
 
+    final totalSteps = exitDistance * progress;
+    final completedSteps = totalSteps.floor().clamp(0, exitDistance);
+    final fraction = totalSteps - completedSteps;
+    if (fraction <= 0 || completedSteps >= exitDistance) {
+      return arrow
+          .pointsAtStep(completedSteps.clamp(0, exitDistance))
+          .map(metrics.offsetFor)
+          .toList();
+    }
+
+    final current = arrow.pointsAtStep(completedSteps);
+    final next = arrow.pointsAtStep(completedSteps + 1);
+    final length = current.length;
+
+    // Each segment follows the one ahead, keeping bends orthogonal.
     return [
-      for (var index = 0; index < fromPoints.length; index++)
+      for (var index = 0; index < length; index++)
         Offset.lerp(
-          metrics.offsetFor(fromPoints[index]),
-          metrics.offsetFor(toPoints[index]),
+          metrics.offsetFor(current[index]),
+          metrics.offsetFor(
+            index == length - 1 ? next[index] : current[index + 1],
+          ),
           fraction,
         )!,
     ];
@@ -213,7 +285,7 @@ class _ArrowBoardPainter extends CustomPainter {
     _BoardMetrics metrics,
     bool rejected,
   ) {
-    if (points.isEmpty) return;
+    if (points.length < 2) return;
 
     final color = rejected ? const Color(0xFFB5483A) : const Color(0xFF66584B);
     final lineWidth = math.max(2.3, metrics.cellSize * 0.105);
@@ -228,30 +300,35 @@ class _ArrowBoardPainter extends CustomPainter {
         ..color = color
         ..style = PaintingStyle.stroke
         ..strokeWidth = lineWidth
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
+        ..strokeCap = StrokeCap.butt
+        ..strokeJoin = StrokeJoin.miter,
     );
 
     final head = points.last;
-    final directionOffset = Offset(
-      direction.dCol.toDouble(),
-      direction.dRow.toDouble(),
-    );
-    final normal = Offset(-directionOffset.dy, directionOffset.dx);
-    final tip = head + directionOffset * metrics.cellSize * 0.34;
-    final base = head - directionOffset * metrics.cellSize * 0.12;
+    final beforeHead = points[points.length - 2];
+    final delta = head - beforeHead;
+    final headDirection = delta.distance == 0
+        ? Offset(direction.dCol.toDouble(), direction.dRow.toDouble())
+        : Offset(delta.dx / delta.distance, delta.dy / delta.distance);
+    final normal = Offset(-headDirection.dy, headDirection.dx);
+    final tip = head + headDirection * metrics.cellSize * 0.34;
+    final base = head - headDirection * metrics.cellSize * 0.12;
     final halfWidth = metrics.cellSize * 0.20;
+
     final arrowHead = Path()
       ..moveTo(tip.dx, tip.dy)
       ..lineTo((base + normal * halfWidth).dx, (base + normal * halfWidth).dy)
       ..lineTo((base - normal * halfWidth).dx, (base - normal * halfWidth).dy)
       ..close();
+
     canvas.drawPath(arrowHead, Paint()..color = color);
   }
 
   @override
   bool shouldRepaint(covariant _ArrowBoardPainter oldDelegate) {
     return oldDelegate.board != board ||
+        oldDelegate.shapeCells != shapeCells ||
+        oldDelegate.showShapeBackground != showShapeBackground ||
         oldDelegate.movingId != movingId ||
         oldDelegate.movingProgress != movingProgress ||
         oldDelegate.exitDistance != exitDistance ||
