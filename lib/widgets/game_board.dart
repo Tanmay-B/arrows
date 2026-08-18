@@ -258,6 +258,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                           movingProgress: progress,
                           exitDistance: _exitDistance,
                           rejectedId: provider.lastRejectedId,
+                          hintedId: provider.hintedArrowId,
                         ),
                       );
                     },
@@ -312,6 +313,7 @@ class _ArrowBoardPainter extends CustomPainter {
     required this.movingProgress,
     required this.exitDistance,
     required this.rejectedId,
+    required this.hintedId,
   });
 
   final Board board;
@@ -321,6 +323,7 @@ class _ArrowBoardPainter extends CustomPainter {
   final double movingProgress;
   final int exitDistance;
   final String? rejectedId;
+  final String? hintedId;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -343,7 +346,8 @@ class _ArrowBoardPainter extends CustomPainter {
         points,
         arrow.direction,
         metrics,
-        arrow.id == rejectedId,
+        rejected: arrow.id == rejectedId,
+        hinted: arrow.id == hintedId,
       );
     }
   }
@@ -431,12 +435,17 @@ class _ArrowBoardPainter extends CustomPainter {
     Canvas canvas,
     List<Offset> points,
     Direction direction,
-    _BoardMetrics metrics,
-    bool rejected,
-  ) {
+    _BoardMetrics metrics, {
+    required bool rejected,
+    required bool hinted,
+  }) {
     if (points.length < 2) return;
 
-    final color = rejected ? const Color(0xFFB5483A) : const Color(0xFF66584B);
+    final color = rejected
+        ? const Color(0xFFB5483A)
+        : hinted
+        ? const Color(0xFF2E9B6A)
+        : const Color(0xFF66584B);
     final lineWidth = math.max(3.0, metrics.cellSize * 0.14);
     final path = Path()..moveTo(points.first.dx, points.first.dy);
     for (final point in points.skip(1)) {
@@ -481,7 +490,8 @@ class _ArrowBoardPainter extends CustomPainter {
         oldDelegate.movingId != movingId ||
         oldDelegate.movingProgress != movingProgress ||
         oldDelegate.exitDistance != exitDistance ||
-        oldDelegate.rejectedId != rejectedId;
+        oldDelegate.rejectedId != rejectedId ||
+        oldDelegate.hintedId != hintedId;
   }
 }
 

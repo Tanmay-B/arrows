@@ -22,6 +22,7 @@ class GameProvider extends ChangeNotifier {
   int _lives = 3;
   String? _lastRejectedId;
   MoveSuccess? _pendingMove;
+  String? _hintedArrowId;
 
   Board get board => _board;
   LevelDef get level => _level;
@@ -33,8 +34,10 @@ class GameProvider extends ChangeNotifier {
   bool get showShapeBackground => _showShapeBackground;
   int get lives => _lives;
   String? get lastRejectedId => _lastRejectedId;
+  String? get hintedArrowId => _hintedArrowId;
   MoveSuccess? get pendingMove => _pendingMove;
   Set<String> get movableIds => _engine.getMovableIds(_board).toSet();
+  bool get canGoBack => _levelIndex > 0;
 
   void loadLevel(int index) {
     _levelIndex = index.clamp(0, LevelCatalog.levelCount - 1);
@@ -47,10 +50,17 @@ class GameProvider extends ChangeNotifier {
     _lives = 3;
     _lastRejectedId = null;
     _pendingMove = null;
+    _hintedArrowId = null;
     notifyListeners();
   }
 
   void restart() => loadLevel(_levelIndex);
+
+  void previousLevel() {
+    if (_levelIndex > 0) {
+      loadLevel(_levelIndex - 1);
+    }
+  }
 
   void nextLevel() {
     if (_levelIndex < LevelCatalog.levelCount - 1) {
@@ -58,10 +68,31 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  /// Returns the hinted arrow id, or null if no hint is available.
+  String? revealHint() {
+    if (_status != GameStatus.playing || _isAnimating) return null;
+
+    for (final arrowId in _level.solution) {
+      if (_board.arrows.containsKey(arrowId)) {
+        _hintedArrowId = arrowId;
+        notifyListeners();
+        return arrowId;
+      }
+    }
+    return null;
+  }
+
+  void clearHint() {
+    if (_hintedArrowId == null) return;
+    _hintedArrowId = null;
+    notifyListeners();
+  }
+
   /// Returns a successful move to animate, or null if rejected.
   MoveSuccess? tapArrow(String arrowId) {
     if (_isAnimating || _status != GameStatus.playing) return null;
 
+    clearHint();
     final result = _engine.tryMove(_board, arrowId);
     if (result is MoveFailure) {
       _lastRejectedId = arrowId;

@@ -1,15 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
+import '../services/ad_service.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/game_board.dart';
 
 class GameScreen extends StatelessWidget {
   const GameScreen({super.key});
 
+  Future<void> _requestHint(BuildContext context) async {
+    final provider = context.read<GameProvider>();
+    if (provider.status != GameStatus.playing || provider.isAnimating) return;
+
+    await AdService.instance.showInterstitial(
+      onFinished: () {
+        if (!context.mounted) return;
+        final hinted = context.read<GameProvider>().revealHint();
+        if (hinted == null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No hint available for this board.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<GameProvider>();
     final colorScheme = Theme.of(context).colorScheme;
+    final canHint =
+        provider.status == GameStatus.playing && !provider.isAnimating;
 
     return Scaffold(
       body: SafeArea(
@@ -17,67 +41,81 @@ class GameScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Column(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: provider.restart,
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
-                      Expanded(
-                        child: Text(
-                          'Level ${provider.levelIndex + 1}',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFFB07B26),
-                              ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: provider.restart,
-                        icon: const Icon(Icons.refresh_rounded),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      3,
-                      (index) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: Icon(
-                          Icons.water_drop_rounded,
-                          size: 25,
-                          color: index < provider.lives
-                              ? const Color(0xFF56B8E8)
-                              : colorScheme.outlineVariant,
-                        ),
-                      ),
+                  SizedBox(
+                    width: 48,
+                    child: IconButton(
+                      onPressed: provider.canGoBack
+                          ? provider.previousLevel
+                          : null,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      visualDensity: VisualDensity.compact,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    provider.level.name,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          children: [
+                            Text(
+                              'Level ${provider.levelIndex + 1}',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFFB07B26),
+                                  ),
+                            ),
+                            ...List.generate(
+                              3,
+                              (index) => Icon(
+                                Icons.water_drop_rounded,
+                                size: 18,
+                                color: index < provider.lives
+                                    ? const Color(0xFF56B8E8)
+                                    : colorScheme.outlineVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          provider.level.name,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: 48,
+                    child: IconButton(
+                      onPressed: provider.restart,
+                      icon: const Icon(Icons.refresh_rounded),
+                      visualDensity: VisualDensity.compact,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             const Expanded(
               child: ClipRect(
                 child: GameBoard(),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               child: Column(
                 children: [
                   Row(
@@ -96,7 +134,7 @@ class GameScreen extends StatelessWidget {
                       _RoundAction(
                         icon: Icons.lightbulb_outline_rounded,
                         label: 'Hint',
-                        onTap: () {},
+                        onTap: canHint ? () => _requestHint(context) : null,
                       ),
                     ],
                   ),
@@ -116,6 +154,7 @@ class GameScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const AdBanner(),
           ],
         ),
       ),
@@ -132,28 +171,40 @@ class _RoundAction extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
+
     return Column(
       children: [
         Material(
-          color: Colors.white,
+          color: enabled ? Colors.white : Colors.white.withValues(alpha: 0.6),
           shape: const CircleBorder(),
-          elevation: 3,
+          elevation: enabled ? 3 : 0,
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: onTap,
             child: SizedBox(
               width: 58,
               height: 58,
-              child: Icon(icon, color: const Color(0xFF66584B)),
+              child: Icon(
+                icon,
+                color: enabled
+                    ? const Color(0xFF66584B)
+                    : const Color(0xFF998B7E),
+              ),
             ),
           ),
         ),
         const SizedBox(height: 5),
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: enabled ? null : Theme.of(context).colorScheme.outline,
+          ),
+        ),
       ],
     );
   }

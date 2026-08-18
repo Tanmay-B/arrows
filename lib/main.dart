@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'screens/game_screen.dart';
+import 'services/ad_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await MobileAds.instance.initialize();
+  await AdService.instance.preloadInterstitial();
   runApp(const ArrowsApp());
 }
 
