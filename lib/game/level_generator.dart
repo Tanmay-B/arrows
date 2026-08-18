@@ -417,6 +417,10 @@ class LevelGenerator {
     var current = arrow;
 
     for (var step = 1; step <= maxSteps; step++) {
+      if (current.collidesWithSelfOnNextStep()) {
+        return false;
+      }
+
       final nextHead = current.head.translate(current.direction);
       if (_inside(nextHead, size) && occupied.contains(nextHead)) {
         return false;

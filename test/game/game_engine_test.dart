@@ -107,6 +107,39 @@ void main() {
     expect(engine.canMove(board, 'a'), isFalse);
   });
 
+  test('bent snake cannot exit when head would hit its own body', () {
+    final board = Board.fromLevel(
+      LevelDef(
+        id: 't5',
+        name: 't5',
+        rows: 5,
+        cols: 5,
+        shapeName: 'Square',
+        shapeCells: {
+          for (var row = 0; row < 5; row++)
+            for (var col = 0; col < 5; col++) GridPoint(row, col),
+        },
+        arrows: const [
+          Arrow(
+            id: 'a',
+            points: [
+              GridPoint(1, 1),
+              GridPoint(1, 2),
+              GridPoint(1, 3),
+              GridPoint(2, 3),
+              GridPoint(3, 3),
+              GridPoint(3, 2),
+              GridPoint(2, 2),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(engine.canMove(board, 'a'), isFalse);
+    expect(engine.tryMove(board, 'a'), isA<MoveFailure>());
+  });
+
   test('all 1000 levels are unique, valid, and solvable', () {
     final fingerprints = <String>{};
 

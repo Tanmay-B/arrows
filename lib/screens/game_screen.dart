@@ -65,7 +65,11 @@ class GameScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              const Expanded(child: GameBoard()),
+              Expanded(
+                child: ClipRect(
+                  child: const GameBoard(),
+                ),
+              ),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

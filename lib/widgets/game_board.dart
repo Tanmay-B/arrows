@@ -89,19 +89,20 @@ class _GameBoardState extends State<GameBoard>
           constraints.maxHeight / boardSize.height,
         );
 
-        return SizedBox(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-          child: InteractiveViewer(
-            key: ValueKey(provider.levelIndex),
-            transformationController: _transformController,
-            constrained: false,
-            minScale: fitScale * 0.8,
-            maxScale: math.max(4.0, 1 / fitScale * 2),
-            panEnabled: true,
-            scaleEnabled: true,
-            boundaryMargin: const EdgeInsets.all(120),
-            clipBehavior: Clip.none,
+        return ClipRect(
+          child: SizedBox(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            child: InteractiveViewer(
+              key: ValueKey(provider.levelIndex),
+              transformationController: _transformController,
+              constrained: false,
+              minScale: fitScale * 0.8,
+              maxScale: math.max(4.0, 1 / fitScale * 2),
+              panEnabled: true,
+              scaleEnabled: true,
+              boundaryMargin: const EdgeInsets.all(120),
+              clipBehavior: Clip.hardEdge,
             child: SizedBox(
               width: boardSize.width,
               height: boardSize.height,
@@ -138,7 +139,8 @@ class _GameBoardState extends State<GameBoard>
             ),
           ),
         ),
-        );
+      ),
+    );
       },
     );
   }

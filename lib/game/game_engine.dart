@@ -73,6 +73,10 @@ class GameEngine {
     var current = arrow;
 
     for (var step = 1; step <= maxSteps; step++) {
+      if (current.collidesWithSelfOnNextStep()) {
+        return null;
+      }
+
       final nextHead = current.head.translate(current.direction);
       if (board.inBounds(nextHead.row, nextHead.col) &&
           occupied.containsKey(nextHead)) {

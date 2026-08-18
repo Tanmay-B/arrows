@@ -45,6 +45,13 @@ class Arrow {
     return Direction.right;
   }
 
+  /// Whether advancing the pointer one step would collide with this snake's body.
+  bool collidesWithSelfOnNextStep() {
+    if (points.length <= 2) return false;
+    final nextHead = head.translate(direction);
+    return points.sublist(1).contains(nextHead);
+  }
+
   /// One rope step: the pointer advances and the body follows, tail vacating.
   Arrow advanceStep() {
     return Arrow(
