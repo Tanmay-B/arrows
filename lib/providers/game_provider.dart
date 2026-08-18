@@ -46,6 +46,15 @@ class GameProvider extends ChangeNotifier {
       hasNextLevel &&
       _preloadedLevelIndex == _levelIndex + 1 &&
       _preloadedLevel != null;
+  bool get hasGameInProgress {
+    if (_levelIndex > 0) return true;
+    if (_status != GameStatus.playing) return true;
+    if (_lives < 3) return true;
+    if (_board.arrows.length < _level.arrows.length) return true;
+    return false;
+  }
+
+  void startNewGame() => loadLevel(0);
 
   void _applyLevel(int index, LevelDef level) {
     _levelIndex = index;
