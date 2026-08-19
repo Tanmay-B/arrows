@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:arrows/main.dart';
 import 'package:arrows/models/level.dart';
 import 'package:arrows/providers/game_provider.dart';
+import 'package:arrows/providers/settings_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,15 @@ void main() {
     final provider = GameProvider();
     await provider.restoreProgress();
 
-    await tester.pumpWidget(ArrowsApp(gameProvider: provider));
+    final settingsProvider = SettingsProvider();
+    await settingsProvider.load();
+
+    await tester.pumpWidget(
+      ArrowsApp(
+        gameProvider: provider,
+        settingsProvider: settingsProvider,
+      ),
+    );
     expect(find.text('Arrow Maze'), findsOneWidget);
     expect(find.text('New Game'), findsOneWidget);
 

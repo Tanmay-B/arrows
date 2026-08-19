@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
+import 'providers/settings_provider.dart';
 import 'screens/home_screen.dart';
 import 'services/ad_service.dart';
 
@@ -13,13 +14,26 @@ Future<void> main() async {
   final gameProvider = GameProvider();
   await gameProvider.restoreProgress();
 
-  runApp(ArrowsApp(gameProvider: gameProvider));
+  final settingsProvider = SettingsProvider();
+  await settingsProvider.load();
+
+  runApp(
+    ArrowsApp(
+      gameProvider: gameProvider,
+      settingsProvider: settingsProvider,
+    ),
+  );
 }
 
 class ArrowsApp extends StatefulWidget {
-  const ArrowsApp({super.key, required this.gameProvider});
+  const ArrowsApp({
+    super.key,
+    required this.gameProvider,
+    required this.settingsProvider,
+  });
 
   final GameProvider gameProvider;
+  final SettingsProvider settingsProvider;
 
   @override
   State<ArrowsApp> createState() => _ArrowsAppState();
@@ -48,8 +62,11 @@ class _ArrowsAppState extends State<ArrowsApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: widget.gameProvider,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: widget.gameProvider),
+        ChangeNotifierProvider.value(value: widget.settingsProvider),
+      ],
       child: MaterialApp(
         title: 'Arrow Maze',
         debugShowCheckedModeBanner: false,

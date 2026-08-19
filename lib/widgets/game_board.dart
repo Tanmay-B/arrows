@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/board.dart';
 import '../providers/game_provider.dart';
+import '../providers/settings_provider.dart';
 import 'arrow_board_painter.dart';
 
 class GameBoard extends StatefulWidget {
@@ -167,11 +168,14 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     if (_previewActive) return;
 
     final provider = context.read<GameProvider>();
+    final settings = context.read<SettingsProvider>();
     final result = provider.tapArrow(arrowId);
 
     if (result == null) {
       if (provider.lastRejectedId == arrowId) {
-        HapticFeedback.heavyImpact();
+        if (settings.hapticsEnabled) {
+          HapticFeedback.heavyImpact();
+        }
         _shakeController.forward(from: 0);
         Future<void>.delayed(
           const Duration(milliseconds: _rejectFeedbackMs),
@@ -183,7 +187,9 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       return;
     }
 
-    HapticFeedback.selectionClick();
+    if (settings.hapticsEnabled) {
+      HapticFeedback.selectionClick();
+    }
     setState(() {
       _movingId = arrowId;
       _exitDistance = result.exitDistance;

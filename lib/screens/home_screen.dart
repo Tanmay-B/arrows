@@ -4,6 +4,7 @@ import '../providers/game_provider.dart';
 import '../widgets/arrows_logo.dart';
 import '../widgets/home_puzzle_autoplay.dart';
 import 'game_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -57,8 +58,8 @@ class HomeScreen extends StatelessWidget {
           const Positioned.fill(
             child: IgnorePointer(
               child: Opacity(
-                opacity: 0.32,
-                child: HomePuzzleAutoplay(),
+                opacity: 0.25,
+                child: HomePuzzleBackground(),
               ),
             ),
           ),
@@ -69,9 +70,9 @@ class HomeScreen extends StatelessWidget {
                   center: const Alignment(0, -0.15),
                   radius: 1.15,
                   colors: [
-                    const Color(0xFFF7F0DE).withValues(alpha: 0.55),
-                    const Color(0xFFF7F0DE).withValues(alpha: 0.82),
-                    const Color(0xFFEDE4D4).withValues(alpha: 0.94),
+                    const Color(0xFFF7F0DE).withValues(alpha: 0.28),
+                    const Color(0xFFF7F0DE).withValues(alpha: 0.48),
+                    const Color(0xFFEDE4D4).withValues(alpha: 0.62),
                   ],
                   stops: const [0, 0.55, 1],
                 ),
@@ -79,68 +80,97 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-                child: Consumer<GameProvider>(
-                  builder: (context, provider, _) {
-                    final inProgress = provider.hasGameInProgress;
-                    final primaryLabel = inProgress ? 'Continue' : 'New Game';
-                    final levelSubtitle = inProgress
-                        ? 'Level ${provider.levelIndex + 1} • ${provider.level.name}'
-                        : 'Start from Level 1';
+            child: Stack(
+              children: [
+                Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 24,
+                    ),
+                    child: Consumer<GameProvider>(
+                      builder: (context, provider, _) {
+                        final inProgress = provider.hasGameInProgress;
+                        final primaryLabel =
+                            inProgress ? 'Continue' : 'New Game';
+                        final levelSubtitle = inProgress
+                            ? 'Level ${provider.levelIndex + 1} • ${provider.level.name}'
+                            : 'Start from Level 1';
 
-                    return ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 360),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const ArrowsLogo(),
-                          const SizedBox(height: 20),
-                          Text(
-                            'Guide the arrows. Clear the board.\nFind the hidden path.',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              height: 1.5,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.15,
-                              color: const Color(0xFF3D2E22),
-                            ),
-                          ),
-                          const SizedBox(height: 36),
-                          _HomeActionCard(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _PrimaryHomeButton(
-                                  label: primaryLabel,
-                                  subtitle: levelSubtitle,
-                        onPressed: () async {
-                          if (!inProgress) {
-                            await provider.startNewGame();
-                          }
-                          _openGame(context);
-                        },
+                        return ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const ArrowsLogo(),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Guide the arrows. Clear the board.\nFind the hidden path.',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.copyWith(
+                                      height: 1.5,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0.15,
+                                      color: const Color(0xFF3D2E22),
+                                    ),
+                              ),
+                              const SizedBox(height: 36),
+                              _HomeActionCard(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _PrimaryHomeButton(
+                                      label: primaryLabel,
+                                      subtitle: levelSubtitle,
+                                      onPressed: () async {
+                                        if (!inProgress) {
+                                          await provider.startNewGame();
+                                        }
+                                        _openGame(context);
+                                      },
+                                    ),
+                                    if (inProgress) ...[
+                                      const SizedBox(height: 12),
+                                      _SecondaryHomeButton(
+                                        label: 'Restart Level',
+                                        subtitle:
+                                            'Replay Level ${provider.levelIndex + 1} from the start',
+                                        onPressed: () => _confirmRestartLevel(
+                                          context,
+                                          provider,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                if (inProgress) ...[
-                                  const SizedBox(height: 12),
-                                  _SecondaryHomeButton(
-                                    label: 'Restart Level',
-                                    subtitle:
-                                        'Replay Level ${provider.levelIndex + 1} from the start',
-                                    onPressed: () =>
-                                        _confirmRestartLevel(context, provider),
-                                  ),
-                                ],
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ),
                 ),
-              ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: IconButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.settings_rounded),
+                    color: const Color(0xFF66584B),
+                    tooltip: 'Settings',
+                  ),
+                ),
+              ],
             ),
           ),
         ],

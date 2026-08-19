@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -10,9 +8,16 @@ import 'arrow_board_painter.dart';
 
 /// Faded background demo that auto-solves a puzzle loop on the home screen.
 class HomePuzzleAutoplay extends StatefulWidget {
-  const HomePuzzleAutoplay({super.key, this.levelIndex = 2});
+  const HomePuzzleAutoplay({
+    super.key,
+    this.levelIndex = 2,
+    this.startDelay = Duration.zero,
+    this.onReady,
+  });
 
   final int levelIndex;
+  final Duration startDelay;
+  final VoidCallback? onReady;
 
   @override
   State<HomePuzzleAutoplay> createState() => _HomePuzzleAutoplayState();
@@ -37,6 +42,7 @@ class _HomePuzzleAutoplayState extends State<HomePuzzleAutoplay>
   int _exitDistance = 0;
   Board? _pendingBoard;
   bool _loading = true;
+  bool _readyNotified = false;
 
   @override
   void initState() {
@@ -72,8 +78,15 @@ class _HomePuzzleAutoplayState extends State<HomePuzzleAutoplay>
       _loading = false;
     });
 
+    if (!_readyNotified) {
+      _readyNotified = true;
+      widget.onReady?.call();
+    }
+
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _scheduleNextMove();
+      if (mounted) {
+        _scheduleNextMove(delay: widget.startDelay);
+      }
     });
   }
 
@@ -170,37 +183,121 @@ class _HomePuzzleAutoplayState extends State<HomePuzzleAutoplay>
           board.cols * _cellSize,
           board.rows * _cellSize,
         );
-        final scaleX = viewport.width / boardSize.width;
-        final scaleY = viewport.height / boardSize.height;
-        final scale = math.max(scaleX, scaleY);
 
-        return Center(
-          child: Transform.scale(
-            scale: scale,
-            child: SizedBox(
-              width: boardSize.width,
-              height: boardSize.height,
-              child: AnimatedBuilder(
-                animation: _moveController,
-                builder: (context, _) {
-                  return CustomPaint(
-                    painter: ArrowBoardPainter(
-                      board: board,
-                      shapeCells: level.shapeCells,
-                      showShapeBackground: true,
-                      movingId: _movingId,
-                      movingProgress: _moveController.value,
-                      exitDistance: _exitDistance,
-                      hintedId: _movingId,
-                      fade: 0.62,
-                    ),
-                  );
-                },
+        return ClipRect(
+          child: SizedBox(
+            width: viewport.width,
+            height: viewport.height,
+            child: FittedBox(
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: boardSize.width,
+                height: boardSize.height,
+                child: AnimatedBuilder(
+                  animation: _moveController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: ArrowBoardPainter(
+                        board: board,
+                        shapeCells: level.shapeCells,
+                        showShapeBackground: true,
+                        movingId: _movingId,
+                        movingProgress: _moveController.value,
+                        exitDistance: _exitDistance,
+                        hintedId: _movingId,
+                        fade: 0.9,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Three stacked autoplay boards that cover the home screen background.
+class HomePuzzleBackground extends StatelessWidget {
+  const HomePuzzleBackground({super.key});
+
+  static const _levelIndices = [2, 7, 14];
+  static const _startDelays = [
+    Duration.zero,
+    Duration(milliseconds: 900),
+    Duration(milliseconds: 1800),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < _levelIndices.length; i++)
+          Expanded(
+            child: _FadingHomePuzzleTile(
+              levelIndex: _levelIndices[i],
+              startDelay: _startDelays[i],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FadingHomePuzzleTile extends StatefulWidget {
+  const _FadingHomePuzzleTile({
+    required this.levelIndex,
+    required this.startDelay,
+  });
+
+  final int levelIndex;
+  final Duration startDelay;
+
+  @override
+  State<_FadingHomePuzzleTile> createState() => _FadingHomePuzzleTileState();
+}
+
+class _FadingHomePuzzleTileState extends State<_FadingHomePuzzleTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fadeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  void _handleReady() {
+    if (_fadeController.isAnimating || _fadeController.isCompleted) return;
+    _fadeController.forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: _fadeController,
+        curve: Curves.easeOut,
+      ),
+      child: ClipRect(
+        child: HomePuzzleAutoplay(
+          levelIndex: widget.levelIndex,
+          startDelay: widget.startDelay,
+          onReady: _handleReady,
+        ),
+      ),
     );
   }
 }
