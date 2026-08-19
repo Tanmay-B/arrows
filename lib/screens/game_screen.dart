@@ -17,6 +17,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   late final ConfettiController _confettiController;
   int? _celebratedSession;
+  int? _shownLostGeneration;
 
   @override
   void initState() {
@@ -168,10 +169,78 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  Future<void> _showLostDialog(GameProvider provider) async {
+    AdService.instance.preloadRewarded();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: Icon(
+            Icons.water_drop_outlined,
+            color: Theme.of(dialogContext).colorScheme.primary,
+          ),
+          title: const Text('No drops left'),
+          content: const Text(
+            'Watch an ad to earn another drop and keep going, or restart '
+            'the level from the beginning.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                provider.restart();
+              },
+              child: const Text('Restart'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                final navigator = Navigator.of(dialogContext);
+                final messenger = ScaffoldMessenger.of(context);
+                final rewarded = await AdService.instance.showRewardedAd(
+                  onRewardEarned: provider.restoreLifeFromAd,
+                );
+                if (!mounted) return;
+                if (rewarded) {
+                  navigator.pop();
+                  return;
+                }
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Ad unavailable right now. Try again or restart.',
+                    ),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.play_circle_outline_rounded),
+              label: const Text('Watch ad for drop'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _handleLevelLost(GameProvider provider) {
+    if (provider.status != GameStatus.lost) return;
+    if (_shownLostGeneration == provider.lossGeneration) return;
+
+    _shownLostGeneration = provider.lossGeneration;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showLostDialog(context.read<GameProvider>());
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<GameProvider>();
     _handleLevelWin(provider);
+    _handleLevelLost(provider);
 
     final colorScheme = Theme.of(context).colorScheme;
     final canHint =
@@ -287,10 +356,6 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ],
                       ),
-                      if (provider.status == GameStatus.lost) ...[
-                        const SizedBox(height: 16),
-                        _LostBanner(onRestart: provider.restart),
-                      ],
                     ],
                   ),
                 ),
@@ -369,29 +434,6 @@ class _RoundAction extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _LostBanner extends StatelessWidget {
-  const _LostBanner({required this.onRestart});
-
-  final VoidCallback onRestart;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.errorContainer,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            const Expanded(child: Text('No drops left. Try the level again.')),
-            TextButton(onPressed: onRestart, child: const Text('Restart')),
-          ],
-        ),
-      ),
     );
   }
 }

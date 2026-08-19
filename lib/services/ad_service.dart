@@ -12,6 +12,8 @@ class AdService {
 
   InterstitialAd? _interstitial;
   Future<void>? _loadFuture;
+  RewardedAd? _rewarded;
+  Future<void>? _rewardedLoadFuture;
 
   static String get _interstitialUnitId {
     if (Platform.isAndroid) {
@@ -21,6 +23,16 @@ class AdService {
       return 'ca-app-pub-3940256099942544/4411468910';
     }
     return 'ca-app-pub-3940256099942544/1033173712';
+  }
+
+  static String get _rewardedUnitId {
+    if (Platform.isAndroid) {
+      return 'ca-app-pub-3940256099942544/5224354917';
+    }
+    if (Platform.isIOS) {
+      return 'ca-app-pub-3940256099942544/1712485313';
+    }
+    return 'ca-app-pub-3940256099942544/5224354917';
   }
 
   Future<void> preloadInterstitial() {
@@ -90,5 +102,81 @@ class AdService {
     );
     ad.show();
     await completer.future;
+  }
+
+  Future<void> preloadRewarded() {
+    if (_rewarded != null) {
+      return Future.value();
+    }
+    if (_rewardedLoadFuture != null) {
+      return _rewardedLoadFuture!;
+    }
+
+    final completer = Completer<void>();
+    _rewardedLoadFuture = completer.future;
+
+    RewardedAd.load(
+      adUnitId: _rewardedUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewarded = ad;
+          if (!completer.isCompleted) completer.complete();
+        },
+        onAdFailedToLoad: (_) {
+          _rewarded = null;
+          if (!completer.isCompleted) completer.complete();
+        },
+      ),
+    );
+
+    return completer.future.whenComplete(() {
+      _rewardedLoadFuture = null;
+    });
+  }
+
+  /// Shows a rewarded ad if ready. [onRewardEarned] runs when the user earns
+  /// the reward; returns whether the reward callback was invoked.
+  Future<bool> showRewardedAd({required VoidCallback onRewardEarned}) async {
+    if (_rewarded == null) {
+      await preloadRewarded();
+    }
+
+    final ad = _rewarded;
+    if (ad == null) {
+      return false;
+    }
+
+    _rewarded = null;
+    final completer = Completer<bool>();
+    var rewardEarned = false;
+
+    void finish(bool earned) {
+      if (!completer.isCompleted) {
+        completer.complete(earned);
+      }
+    }
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (dismissed) {
+        dismissed.dispose();
+        preloadRewarded();
+        finish(rewardEarned);
+      },
+      onAdFailedToShowFullScreenContent: (failed, _) {
+        failed.dispose();
+        preloadRewarded();
+        finish(false);
+      },
+    );
+
+    ad.show(
+      onUserEarnedReward: (_, __) {
+        rewardEarned = true;
+        onRewardEarned();
+      },
+    );
+
+    return completer.future;
   }
 }

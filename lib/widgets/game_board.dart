@@ -16,7 +16,10 @@ class GameBoard extends StatefulWidget {
 }
 
 class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
+  static const _rejectFeedbackMs = 420;
+
   late final AnimationController _moveController;
+  late final AnimationController _shakeController;
   AnimationController? _previewController;
   final TransformationController _transformController =
       TransformationController();
@@ -41,11 +44,22 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           _moveController.reset();
         }
       });
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: _rejectFeedbackMs),
+    );
+  }
+
+  double _shakeOffsetX() {
+    final t = _shakeController.value;
+    if (t == 0) return 0;
+    return math.sin(t * math.pi * 7) * 9 * (1 - t);
   }
 
   @override
   void dispose() {
     _moveController.dispose();
+    _shakeController.dispose();
     _previewController?.dispose();
     _transformController.dispose();
     super.dispose();
@@ -156,10 +170,16 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     final result = provider.tapArrow(arrowId);
 
     if (result == null) {
-      HapticFeedback.mediumImpact();
-      Future<void>.delayed(const Duration(milliseconds: 260), () {
-        if (mounted) provider.clearRejected();
-      });
+      if (provider.lastRejectedId == arrowId) {
+        HapticFeedback.heavyImpact();
+        _shakeController.forward(from: 0);
+        Future<void>.delayed(
+          const Duration(milliseconds: _rejectFeedbackMs),
+          () {
+            if (mounted) provider.clearRejected();
+          },
+        );
+      }
       return;
     }
 
@@ -213,54 +233,63 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           });
         }
 
-        return ClipRect(
-          child: SizedBox(
-            width: viewport.width,
-            height: viewport.height,
-            child: InteractiveViewer(
-              transformationController: _transformController,
-              constrained: false,
-              minScale: zoom.minScale,
-              maxScale: zoom.maxScale,
-              panEnabled: !_previewActive,
-              scaleEnabled: !_previewActive,
-              boundaryMargin: const EdgeInsets.all(120),
-              clipBehavior: Clip.hardEdge,
-              child: SizedBox(
-                width: boardSize.width,
-                height: boardSize.height,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTapUp:
-                      !_previewActive &&
-                          provider.status == GameStatus.playing &&
-                          _movingId == null
-                      ? (details) {
-                          final id = _hitTest(
-                            details.localPosition,
-                            boardSize,
-                            board,
-                          );
-                          if (id != null) _tapArrow(id);
-                        }
-                      : null,
-                  child: AnimatedBuilder(
-                    animation: _moveController,
-                    builder: (context, _) {
-                      final progress = _moveController.value;
-                      return CustomPaint(
-                        painter: ArrowBoardPainter(
-                          board: board,
-                          shapeCells: shapeCells,
-                          showShapeBackground: showShapeBackground,
-                          movingId: _movingId,
-                          movingProgress: progress,
-                          exitDistance: _exitDistance,
-                          rejectedId: provider.lastRejectedId,
-                          hintedId: provider.hintedArrowId,
-                        ),
-                      );
-                    },
+        return AnimatedBuilder(
+          animation: _shakeController,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(_shakeOffsetX(), 0),
+              child: child,
+            );
+          },
+          child: ClipRect(
+            child: SizedBox(
+              width: viewport.width,
+              height: viewport.height,
+              child: InteractiveViewer(
+                transformationController: _transformController,
+                constrained: false,
+                minScale: zoom.minScale,
+                maxScale: zoom.maxScale,
+                panEnabled: !_previewActive,
+                scaleEnabled: !_previewActive,
+                boundaryMargin: const EdgeInsets.all(120),
+                clipBehavior: Clip.hardEdge,
+                child: SizedBox(
+                  width: boardSize.width,
+                  height: boardSize.height,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp:
+                        !_previewActive &&
+                            provider.status == GameStatus.playing &&
+                            _movingId == null
+                        ? (details) {
+                            final id = _hitTest(
+                              details.localPosition,
+                              boardSize,
+                              board,
+                            );
+                            if (id != null) _tapArrow(id);
+                          }
+                        : null,
+                    child: AnimatedBuilder(
+                      animation: _moveController,
+                      builder: (context, _) {
+                        final progress = _moveController.value;
+                        return CustomPaint(
+                          painter: ArrowBoardPainter(
+                            board: board,
+                            shapeCells: shapeCells,
+                            showShapeBackground: showShapeBackground,
+                            movingId: _movingId,
+                            movingProgress: progress,
+                            exitDistance: _exitDistance,
+                            rejectedId: provider.lastRejectedId,
+                            hintedId: provider.hintedArrowId,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),

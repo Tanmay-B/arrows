@@ -25,9 +25,11 @@ class GameProvider extends ChangeNotifier {
   String? _hintedArrowId;
   LevelDef? _preloadedLevel;
   int? _preloadedLevelIndex;
+  int _lossGeneration = 0;
   bool _isInitialized = false;
 
   bool get isInitialized => _isInitialized;
+  int get lossGeneration => _lossGeneration;
   Board get board => _board;
   LevelDef get level => _level;
   int get levelIndex => _levelIndex;
@@ -151,6 +153,16 @@ class GameProvider extends ChangeNotifier {
 
   void restart() => loadLevel(_levelIndex);
 
+  void restoreLifeFromAd() {
+    if (_status != GameStatus.lost) return;
+
+    _lives = 1;
+    _status = GameStatus.playing;
+    _lastRejectedId = null;
+    notifyListeners();
+    _persistProgress();
+  }
+
   Future<void> continueToNextLevel() async {
     if (!hasNextLevel) {
       restart();
@@ -220,6 +232,7 @@ class GameProvider extends ChangeNotifier {
       _lives--;
       if (_lives <= 0) {
         _status = GameStatus.lost;
+        _lossGeneration++;
       }
       notifyListeners();
       _persistProgress();
