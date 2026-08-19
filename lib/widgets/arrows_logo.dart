@@ -14,22 +14,21 @@ class ArrowsLogo extends StatelessWidget {
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(size * 0.24),
+            shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF4A3728).withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
+                color: const Color(0xFF4A3728).withValues(alpha: 0.16),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(size * 0.24),
+          child: ClipOval(
             child: Image.asset(
               _assetPath,
               width: size,
               height: size,
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
             ),
           ),
         ),
