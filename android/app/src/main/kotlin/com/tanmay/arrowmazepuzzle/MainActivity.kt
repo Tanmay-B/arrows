@@ -1,4 +1,4 @@
-package com.tanmay.arrowmaze
+package com.tanmay.arrowmazepuzzle
 
 import io.flutter.embedding.android.FlutterActivity
 

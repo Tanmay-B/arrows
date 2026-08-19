@@ -1,7 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+import '../config/ad_config.dart';
 
 /// Standard bottom banner ad slot.
 class AdBanner extends StatefulWidget {
@@ -15,16 +15,6 @@ class _AdBannerState extends State<AdBanner> {
   BannerAd? _bannerAd;
   bool _loaded = false;
 
-  static String get _adUnitId {
-    if (Platform.isAndroid) {
-      return 'ca-app-pub-3940256099942544/6300978111';
-    }
-    if (Platform.isIOS) {
-      return 'ca-app-pub-3940256099942544/2934735716';
-    }
-    return 'ca-app-pub-3940256099942544/6300978111';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -33,7 +23,7 @@ class _AdBannerState extends State<AdBanner> {
 
   void _loadAd() {
     final banner = BannerAd(
-      adUnitId: _adUnitId,
+      adUnitId: AdConfig.bannerUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(

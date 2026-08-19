@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-/// Loads and shows AdMob interstitials (test units in debug).
+import '../config/ad_config.dart';
+
+/// Loads and shows AdMob interstitials and rewarded ads.
 class AdService {
   AdService._();
 
@@ -14,26 +15,6 @@ class AdService {
   Future<void>? _loadFuture;
   RewardedAd? _rewarded;
   Future<void>? _rewardedLoadFuture;
-
-  static String get _interstitialUnitId {
-    if (Platform.isAndroid) {
-      return 'ca-app-pub-3940256099942544/1033173712';
-    }
-    if (Platform.isIOS) {
-      return 'ca-app-pub-3940256099942544/4411468910';
-    }
-    return 'ca-app-pub-3940256099942544/1033173712';
-  }
-
-  static String get _rewardedUnitId {
-    if (Platform.isAndroid) {
-      return 'ca-app-pub-3940256099942544/5224354917';
-    }
-    if (Platform.isIOS) {
-      return 'ca-app-pub-3940256099942544/1712485313';
-    }
-    return 'ca-app-pub-3940256099942544/5224354917';
-  }
 
   Future<void> preloadInterstitial() {
     if (_interstitial != null) {
@@ -47,7 +28,7 @@ class AdService {
     _loadFuture = completer.future;
 
     InterstitialAd.load(
-      adUnitId: _interstitialUnitId,
+      adUnitId: AdConfig.interstitialUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
@@ -116,7 +97,7 @@ class AdService {
     _rewardedLoadFuture = completer.future;
 
     RewardedAd.load(
-      adUnitId: _rewardedUnitId,
+      adUnitId: AdConfig.rewardedUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
