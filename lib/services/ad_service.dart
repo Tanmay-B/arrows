@@ -11,12 +11,19 @@ class AdService {
 
   static final AdService instance = AdService._();
 
+  Future<void>? _initFuture;
   InterstitialAd? _interstitial;
   Future<void>? _loadFuture;
   RewardedAd? _rewarded;
   Future<void>? _rewardedLoadFuture;
 
-  Future<void> preloadInterstitial() {
+  Future<void> ensureInitialized() {
+    _initFuture ??= MobileAds.instance.initialize().then((_) {});
+    return _initFuture!;
+  }
+
+  Future<void> preloadInterstitial() async {
+    await ensureInitialized();
     if (_interstitial != null) {
       return Future.value();
     }
@@ -85,7 +92,8 @@ class AdService {
     await completer.future;
   }
 
-  Future<void> preloadRewarded() {
+  Future<void> preloadRewarded() async {
+    await ensureInitialized();
     if (_rewarded != null) {
       return Future.value();
     }

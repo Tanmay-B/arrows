@@ -1,10 +1,11 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../config/ad_config.dart';
+import '../services/ad_service.dart';
 
 bool _isFlutterTest() =>
     !kIsWeb && Platform.environment['FLUTTER_TEST'] == 'true';
@@ -20,6 +21,8 @@ class AdBanner extends StatefulWidget {
 class _AdBannerState extends State<AdBanner> {
   BannerAd? _bannerAd;
   bool _loaded = false;
+  int _loadAttempts = 0;
+  static const _maxLoadAttempts = 4;
 
   @override
   void initState() {
@@ -27,8 +30,15 @@ class _AdBannerState extends State<AdBanner> {
     _loadAd();
   }
 
-  void _loadAd() {
+  Future<void> _loadAd() async {
     if (_isFlutterTest()) return;
+
+    await AdService.instance.ensureInitialized();
+    if (!mounted) return;
+
+    _bannerAd?.dispose();
+    _bannerAd = null;
+    _loaded = false;
 
     final banner = BannerAd(
       adUnitId: AdConfig.bannerUnitId,
@@ -45,13 +55,27 @@ class _AdBannerState extends State<AdBanner> {
             _loaded = true;
           });
         },
-        onAdFailedToLoad: (ad, _) {
+        onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          if (mounted) setState(() => _loaded = false);
+          if (kDebugMode) {
+            debugPrint('Banner ad failed to load: ${error.message}');
+          }
+          if (!mounted) return;
+          setState(() => _loaded = false);
+          _scheduleRetry();
         },
       ),
     );
+    _bannerAd = banner;
     banner.load();
+  }
+
+  void _scheduleRetry() {
+    if (_loadAttempts >= _maxLoadAttempts || !mounted) return;
+    _loadAttempts++;
+    Future<void>.delayed(Duration(seconds: _loadAttempts * 2), () {
+      if (mounted) _loadAd();
+    });
   }
 
   @override

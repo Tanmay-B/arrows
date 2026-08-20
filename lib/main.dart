@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'providers/settings_provider.dart';
@@ -19,6 +18,7 @@ Future<void> main() async {
   await Future.wait([
     gameProvider.restoreProgress(),
     settingsProvider.load(),
+    AdService.instance.ensureInitialized(),
   ]);
 
   runApp(
@@ -30,13 +30,8 @@ Future<void> main() async {
 
   WidgetsBinding.instance.addPostFrameCallback((_) {
     FlutterNativeSplash.remove();
-    unawaited(_initializeAds());
+    unawaited(AdService.instance.preloadInterstitial());
   });
-}
-
-Future<void> _initializeAds() async {
-  await MobileAds.instance.initialize();
-  unawaited(AdService.instance.preloadInterstitial());
 }
 
 class ArrowsApp extends StatefulWidget {
