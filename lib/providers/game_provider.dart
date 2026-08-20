@@ -62,10 +62,21 @@ class GameProvider extends ChangeNotifier {
     if (saved != null) {
       await _restoreFromSave(saved);
     } else {
-      loadLevel(0);
+      await _loadLevelAsync(0);
     }
     _isInitialized = true;
     notifyListeners();
+  }
+
+  Future<void> _loadLevelAsync(int index) async {
+    final safeIndex = index.clamp(0, LevelCatalog.levelCount - 1);
+    if (LevelCatalog.isCached(safeIndex)) {
+      loadLevel(safeIndex);
+      return;
+    }
+
+    final level = await LevelCatalog.byIndexAsync(safeIndex);
+    _applyLevel(safeIndex, level);
   }
 
   Future<void> saveProgress() => _persistProgress();
@@ -81,7 +92,7 @@ class GameProvider extends ChangeNotifier {
         .toList();
 
     if (validIds.isEmpty && saved.status == GameStatus.playing.name) {
-      loadLevel(safeIndex);
+      await _loadLevelAsync(safeIndex);
       return;
     }
 

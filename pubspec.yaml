@@ -38,6 +38,7 @@ dependencies:
   google_mobile_ads: ^7.0.0
   confetti: ^0.8.0
   shared_preferences: ^2.5.3
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
@@ -58,6 +59,17 @@ flutter_launcher_icons:
   adaptive_icon_background: "#F7F0DE"
   adaptive_icon_foreground: assets/images/app_icon_foreground.png
   adaptive_icon_foreground_inset: 0
+
+flutter_native_splash:
+  color: "#F7F0DE"
+  image: assets/images/app_icon_android.png
+  android_gravity: center
+  ios: true
+  android: true
+  android_12:
+    color: "#F7F0DE"
+    image: assets/images/app_icon_android.png
+    icon_background_color: "#F7F0DE"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

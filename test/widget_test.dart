@@ -10,6 +10,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    LevelCatalog.byIndex(0);
   });
 
   testWidgets('Arrows app loads home then game screen', (tester) async {

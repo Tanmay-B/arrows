@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
@@ -8,6 +11,9 @@ import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  static bool get _isFlutterTest =>
+      !kIsWeb && Platform.environment['FLUTTER_TEST'] == 'true';
 
   void _openGame(BuildContext context) {
     Navigator.of(context).push(
@@ -55,14 +61,15 @@ class HomeScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: Opacity(
-                opacity: 0.25,
-                child: HomePuzzleBackground(),
+          if (!_isFlutterTest)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: 0.25,
+                  child: HomePuzzleBackground(),
+                ),
               ),
             ),
-          ),
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(

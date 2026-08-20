@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
@@ -7,15 +10,16 @@ import 'screens/home_screen.dart';
 import 'services/ad_service.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await MobileAds.instance.initialize();
-  await AdService.instance.preloadInterstitial();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   final gameProvider = GameProvider();
-  await gameProvider.restoreProgress();
-
   final settingsProvider = SettingsProvider();
-  await settingsProvider.load();
+
+  await Future.wait([
+    gameProvider.restoreProgress(),
+    settingsProvider.load(),
+  ]);
 
   runApp(
     ArrowsApp(
@@ -23,6 +27,16 @@ Future<void> main() async {
       settingsProvider: settingsProvider,
     ),
   );
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    FlutterNativeSplash.remove();
+    unawaited(_initializeAds());
+  });
+}
+
+Future<void> _initializeAds() async {
+  await MobileAds.instance.initialize();
+  unawaited(AdService.instance.preloadInterstitial());
 }
 
 class ArrowsApp extends StatefulWidget {

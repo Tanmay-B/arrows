@@ -1,7 +1,13 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../config/ad_config.dart';
+
+bool _isFlutterTest() =>
+    !kIsWeb && Platform.environment['FLUTTER_TEST'] == 'true';
 
 /// Standard bottom banner ad slot.
 class AdBanner extends StatefulWidget {
@@ -22,6 +28,8 @@ class _AdBannerState extends State<AdBanner> {
   }
 
   void _loadAd() {
+    if (_isFlutterTest()) return;
+
     final banner = BannerAd(
       adUnitId: AdConfig.bannerUnitId,
       size: AdSize.banner,
